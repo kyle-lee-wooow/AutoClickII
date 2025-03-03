@@ -1,4 +1,4 @@
-﻿// TaskAndMqClick.cpp : 定义应用程序的入口点。
+// TaskAndMqClick.cpp : 定义应用程序的入口点。
 
 #include "framework.h"
 #include "TaskAndMqClick.h"
@@ -31,6 +31,8 @@ HINSTANCE hInst;
 WCHAR szTitle[MAX_LOADSTRING];
 WCHAR szWindowClass[MAX_LOADSTRING];
 HWND hListBox;
+HWND TaskStartBtn;
+HWND TaskStopBtn;
 HWND hCheckBoxes[10];
 HWND hEditB[10];
 HWND hEditC[10];
@@ -46,6 +48,8 @@ LRESULT CALLBACK WndProc(HWND, UINT, WPARAM, LPARAM);
 void sendKeyToListBoxs(char key);
 void sendKeyToListBoxsDown(char key);
 void sendKeyToListBoxsUp(char key);
+
+HBRUSH hGreenBrush, hRedBrush; // 按钮背景色画刷
 
 
 //多个案件
@@ -97,14 +101,30 @@ std::thread taskThread;      // 任务线程
 // 启动任务A的函数
 void StartTaskA(HWND hWnd) {
     SetFocus(hWnd);
-    isTaskRunning = true;
+    if(isTaskRunning == false){
+       /* ShowWindow(TaskStopBtn, SW_SHOW);
+        ShowWindow(TaskStartBtn, SW_HIDE);*/
+        isTaskRunning = true;
+
+        // 强制重绘窗口，触发WM_PAINT消息
+        InvalidateRect(hWnd, NULL, TRUE);
+        UpdateWindow(hWnd);
+    }
 }
 
 // 停止任务A的函数
 void StopTaskA(HWND hWnd) {
     SetFocus(hWnd);
-    isTaskRunning = false;
+    if (isTaskRunning == true) {
+        isTaskRunning = false;
+        /*ShowWindow(TaskStopBtn, SW_HIDE);
+        ShowWindow(TaskStartBtn, SW_SHOW);*/
+        std::fill(std::begin(nextExecutionTimes), std::end(nextExecutionTimes), std::chrono::steady_clock::time_point{});
 
+        // 强制重绘窗口，触发WM_PAINT消息
+        InvalidateRect(hWnd, NULL, TRUE);
+        UpdateWindow(hWnd);
+    }
 }
 
 
@@ -207,20 +227,27 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
         SetWindowTextW(hEditB[7], L"60");
         // 设置开箱子
         SetWindowTextW(hEditC[7], L"Shift+8");
+
         // 设置自动打怪
         SetWindowTextW(hEditB[0], L"1");
         // 设置自动打怪
         SetWindowTextW(hEditC[0], L"0");
 
 
+        // 设置自动摧毁
+        SetWindowTextW(hEditB[6], L"600");
+        // 设置自动摧毁
+        SetWindowTextW(hEditC[6], L"7");
+
+
 
         // 创建启动按钮
-        CreateWindowW(L"BUTTON", L"Start", WS_VISIBLE | WS_CHILD | BS_PUSHBUTTON,
+        TaskStartBtn = CreateWindowW(L"BUTTON", L"Start", WS_VISIBLE | WS_CHILD | BS_PUSHBUTTON,
             500, 320, 80, 30, hWnd, (HMENU)1001, hInst, NULL);
 
         // 创建停止按钮
-        CreateWindowW(L"BUTTON", L"Stop", WS_VISIBLE | WS_CHILD | BS_PUSHBUTTON,
-            500, 360, 80, 30, hWnd, (HMENU)1002, hInst, NULL);
+        TaskStopBtn = CreateWindowW(L"BUTTON", L"Stop", WS_VISIBLE | WS_CHILD | BS_PUSHBUTTON,
+            400, 320, 80, 30, hWnd, (HMENU)1002, hInst, NULL);
 
         RegisterHotKey(hWnd, HOTKEY_ID, MOD_CONTROL | MOD_ALT, 'A');
 
@@ -260,16 +287,6 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
             SendMessage((HWND)lParam, BM_SETCHECK, state == BST_CHECKED ? BST_UNCHECKED : BST_CHECKED, 0);
         }
 
-        //if (wmId >= EDIT_C_BASE_ID && wmId < EDIT_C_BASE_ID + 10)
-        //{
-        //    WCHAR keyText[100]; // 增加缓冲区支持更长的按键输入
-        //    SendMessage((HWND)lParam, WM_GETTEXT, 100, (LPARAM)keyText);
-
-        //    std::wstring keyCombo(keyText); // 获取输入框中的按键组合
-        //    sendKeyToListBoxsWs(keyCombo); // 发送多按键组合
-        //}
-       
-
 
 
         switch (wmId)
@@ -294,69 +311,6 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
         }
     }
     break;
-
-    //case WM_TIMER:
-    //    if (wParam == TIMER_ID && isTaskRunning)
-    //    {
-    //        SYSTEMTIME systemTime;
-    //        GetSystemTime(&systemTime);
-    //        auto currentTime = std::chrono::steady_clock::now();
-
-    //        // 检查每一行控件是否应该执行任务
-    //        for (int i = 0; i < 10; i++)
-    //        {
-    //            // 检查当前时间是否已经超过该行的下次执行时间
-    //            if (currentTime >= nextExecutionTimes[i])
-    //            {
-    //                // 获取勾选框状态
-    //                LRESULT state = SendMessage(hCheckBoxes[i], BM_GETCHECK, 0, 0);
-
-    //                if (state == BST_CHECKED)
-    //                {
-    //                    // 获取间隔时间（秒）
-    //                    WCHAR intervalText[10];
-    //                    SendMessage(hEditB[i], WM_GETTEXT, 10, (LPARAM)intervalText);
-    //                    int interval = _wtoi(intervalText);  // 获取秒数
-
-    //                    // 获取按键字符
-    //                    WCHAR keyText[10];
-    //                    SendMessage(hEditC[i], WM_GETTEXT, 10, (LPARAM)keyText);
-    //                    char key = keyText[0];
-
-    //                    std::wstring keyStr(keyText);
-
-    //                    // 如果是空格键，使用 VK_SPACE
-    //                    if (keyStr == L"Space")
-    //                    {
-    //                        key = VK_SPACE;
-    //                    }
-    //                    // 如果是回车键，使用 VK_RETURN
-    //                    else if (keyStr == L"Enter")
-    //                    {
-    //                        key = VK_RETURN;
-    //                    }
-    //                    // 如果是 Tab 键，使用 VK_TAB
-    //                    else if (keyStr == L"Tab")
-    //                    {
-    //                        key = VK_TAB;
-    //                    }
-    //                    // 如果是其他键，处理为字符
-    //                    else
-    //                    {
-    //                        key = keyStr[0];
-    //                    }
-
-
-    //                    sendKeyToListBoxs(key);
-
-    //                    // 更新下次执行时间
-    //                    nextExecutionTimes[i] = currentTime + std::chrono::seconds(interval);
-    //                }
-    //            }
-    //        }
-    //    }
-    //    break;
-
 
     case WM_TIMER:
         if (wParam == TIMER_ID && isTaskRunning)
@@ -387,6 +341,40 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
         }
         break;
 
+    case WM_PAINT:
+       
+        HDC hdc;
+        PAINTSTRUCT ps;
+        RECT rect;
+
+        // 获取设备上下文
+        hdc = BeginPaint(hWnd, &ps);
+
+        // 获取窗口的大小
+        GetClientRect(hWnd, &rect);
+
+
+        // 根据isrun的值绘制圆圈
+        if (isTaskRunning)
+        {
+            // 绘制绿色圆圈
+            HBRUSH greenBrush = CreateSolidBrush(RGB(0, 255, 0)); // 绿色
+            SelectObject(hdc, greenBrush);
+            Ellipse(hdc, 340, 315, 360, 335); // 绘制圆形
+            DeleteObject(greenBrush);
+        }
+        else
+        {
+            // 绘制红色圆圈
+            HBRUSH redBrush = CreateSolidBrush(RGB(255, 0, 0)); // 红色
+            SelectObject(hdc, redBrush);
+            Ellipse(hdc, 340, 315, 360, 335); // 绘制圆形
+            DeleteObject(redBrush);
+        }
+
+        // 结束绘制
+        EndPaint(hWnd, &ps);
+        return 0;
 
     case WM_DESTROY:
         UnregisterHotKey(hWnd, HOTKEY_ID);
@@ -518,8 +506,7 @@ void sendKeyToListBoxsDown(char key)
                 HWND targetWindow = (HWND)windowID;
                 if (IsWindow(targetWindow))
                 {
-                    PostMessage(targetWindow, WM_KEYDOWN, (WPARAM)key, 0);
-                    //PostMessage(targetWindow, WM_KEYUP, (WPARAM)key, 0);
+                    PostMessage(targetWindow, WM_KEYDOWN, (WPARAM)key, 0); 
                 }
             }
         }
@@ -544,7 +531,7 @@ void sendKeyToListBoxsUp(char key)
                 HWND targetWindow = (HWND)windowID;
                 if (IsWindow(targetWindow))
                 {
-                    //PostMessage(targetWindow, WM_KEYDOWN, (WPARAM)key, 0);
+                   
                     PostMessage(targetWindow, WM_KEYUP, (WPARAM)key, 0);
                 }
             }
