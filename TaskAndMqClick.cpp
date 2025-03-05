@@ -1,4 +1,4 @@
-// TaskAndMqClick.cpp : 定义应用程序的入口点。
+﻿// TaskAndMqClick.cpp : 定义应用程序的入口点。
 
 #include "framework.h"
 #include "TaskAndMqClick.h"
