@@ -8,9 +8,10 @@
 #include <thread>
 #include <vector>
 #include <string> 
-
+#include <commdlg.h>  // 用于文件选择对话框
 #include <sstream>
 #include <iostream>
+#include <locale>  // 必须包含这个头文件
 
 #pragma comment(lib, "comctl32.lib")
 
@@ -27,27 +28,30 @@
 #define TIMER_ID 1
 #define INTERVAL_MS 500  // 定时器触发间隔时间
 
+// 现在可以同时执行多少个按键
+#define L_TASK_COUNTS 10
+
 HINSTANCE hInst;
 WCHAR szTitle[MAX_LOADSTRING];
 WCHAR szWindowClass[MAX_LOADSTRING];
 HWND hListBox;
 HWND TaskStartBtn;
 HWND TaskStopBtn;
-HWND hCheckBoxes[10];
-HWND hEditB[10];
-HWND hEditC[10];
+HWND hCheckBoxes[L_TASK_COUNTS];
+HWND hEditB[L_TASK_COUNTS];
+HWND hEditC[L_TASK_COUNTS];
 
 
 // 用来存储每一行的下次执行时间
-std::chrono::steady_clock::time_point nextExecutionTimes[10];
+std::chrono::steady_clock::time_point nextExecutionTimes[L_TASK_COUNTS];
 
 ATOM MyRegisterClass(HINSTANCE hInstance);
 BOOL InitInstance(HINSTANCE, int);
 LRESULT CALLBACK WndProc(HWND, UINT, WPARAM, LPARAM);
 //单个案件
-void sendKeyToListBoxs(char key);
-void sendKeyToListBoxsDown(char key);
-void sendKeyToListBoxsUp(char key);
+void sendKeyToListBoxs(int key);
+void sendKeyToListBoxsDown(int key);
+void sendKeyToListBoxsUp(int key);
 
 HBRUSH hGreenBrush, hRedBrush; // 按钮背景色画刷
 
@@ -61,6 +65,13 @@ std::vector<BYTE> ParseKeyCombo(const std::wstring& keyCombo);
 std::vector<std::vector<BYTE>> ParseMultipleKeyCombos(const std::wstring& keyCombos);
 
 INT_PTR CALLBACK About(HWND, UINT, WPARAM, LPARAM);
+
+//批量登录 
+INT_PTR CALLBACK BATCH_LOGINS(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam);
+
+
+//选择本地文件
+void SelectFile(HWND hEdit);
 
 int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
     _In_opt_ HINSTANCE hPrevInstance,
@@ -205,7 +216,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
         int editWidth = 80;
         int gap = 10;
 
-        for (int i = 0; i < 10; i++)
+        for (int i = 0; i < L_TASK_COUNTS; i++)
         {
             hCheckBoxes[i] = CreateWindowW(L"BUTTON", L"", WS_VISIBLE | WS_CHILD | BS_CHECKBOX,
                 startX, startY + i * rowHeight, checkBoxWidth, 20, hWnd, (HMENU)(CHECKBOX_BASE_ID + i), hInst, NULL);
@@ -224,7 +235,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
         }
 
         // 设置开箱子
-        SetWindowTextW(hEditB[7], L"60");
+        SetWindowTextW(hEditB[7], L"30");
         // 设置开箱子
         SetWindowTextW(hEditC[7], L"Shift+8");
 
@@ -242,12 +253,12 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 
 
         // 创建启动按钮
-        TaskStartBtn = CreateWindowW(L"BUTTON", L"Start", WS_VISIBLE | WS_CHILD | BS_PUSHBUTTON,
-            500, 320, 80, 30, hWnd, (HMENU)1001, hInst, NULL);
+        TaskStartBtn = CreateWindowW(L"BUTTON", L"启动", WS_VISIBLE | WS_CHILD | BS_PUSHBUTTON,
+            400, 320, 80, 30, hWnd, (HMENU)1001, hInst, NULL);
 
         // 创建停止按钮
-        TaskStopBtn = CreateWindowW(L"BUTTON", L"Stop", WS_VISIBLE | WS_CHILD | BS_PUSHBUTTON,
-            400, 320, 80, 30, hWnd, (HMENU)1002, hInst, NULL);
+        TaskStopBtn = CreateWindowW(L"BUTTON", L"停止", WS_VISIBLE | WS_CHILD | BS_PUSHBUTTON,
+            500, 320, 80, 30, hWnd, (HMENU)1002, hInst, NULL);
 
         RegisterHotKey(hWnd, HOTKEY_ID, MOD_CONTROL | MOD_ALT, 'A');
 
@@ -278,10 +289,22 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
         }
         break;
 
+    case WM_LBUTTONDOWN:  // 处理鼠标左键点击事件
+    {
+        //int x = LOWORD(lParam);  // 获取鼠标 X 坐标
+        //int y = HIWORD(lParam);  // 获取鼠标 Y 坐标
+        //wchar_t msg[50];
+        //swprintf_s(msg, L"鼠标点击坐标: %d, %d", x, y);
+        //MessageBox(hWnd, msg, L"鼠标点击", MB_OK);
+        SetFocus(hWnd);
+        break;
+    }
+
+
     case WM_COMMAND:
     {
         int wmId = LOWORD(wParam);
-        if (wmId >= CHECKBOX_BASE_ID && wmId < CHECKBOX_BASE_ID + 10)
+        if (wmId >= CHECKBOX_BASE_ID && wmId < CHECKBOX_BASE_ID + L_TASK_COUNTS)
         {
             LRESULT state = SendMessage((HWND)lParam, BM_GETCHECK, 0, 0);
             SendMessage((HWND)lParam, BM_SETCHECK, state == BST_CHECKED ? BST_UNCHECKED : BST_CHECKED, 0);
@@ -299,9 +322,23 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
             StopTaskA(hWnd);
             break;
 
-
+        case ID_LISTBOX:
+            if(HIWORD(wParam) == LBN_DBLCLK)
+            {
+                // 获取选中的索引
+                int index = SendMessage(hListBox, LB_GETCURSEL, 0, 0);
+                if (index != LB_ERR)
+                {
+                    // 删除选中的项目
+                    SendMessage(hListBox, LB_DELETESTRING, (WPARAM)index, 0);
+                }
+            }
+            break;
         case IDM_ABOUT:
             DialogBox(hInst, MAKEINTRESOURCE(IDD_ABOUTBOX), hWnd, About);
+            break;
+        case IDM_LOGINS:
+            DialogBox(hInst, MAKEINTRESOURCE(IDD_LOGINSBOX), hWnd, BATCH_LOGINS);
             break;
         case IDM_EXIT:
             DestroyWindow(hWnd);
@@ -317,7 +354,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
         {
             auto currentTime = std::chrono::steady_clock::now();
 
-            for (int i = 0; i < 10; i++)
+            for (int i = 0; i < L_TASK_COUNTS; i++)
             {
                 if (currentTime >= nextExecutionTimes[i])
                 {
@@ -360,7 +397,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
             // 绘制绿色圆圈
             HBRUSH greenBrush = CreateSolidBrush(RGB(0, 255, 0)); // 绿色
             SelectObject(hdc, greenBrush);
-            Ellipse(hdc, 340, 315, 360, 335); // 绘制圆形
+            Ellipse(hdc, 340, 325, 360, 345); // 绘制圆形
             DeleteObject(greenBrush);
         }
         else
@@ -368,7 +405,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
             // 绘制红色圆圈
             HBRUSH redBrush = CreateSolidBrush(RGB(255, 0, 0)); // 红色
             SelectObject(hdc, redBrush);
-            Ellipse(hdc, 340, 315, 360, 335); // 绘制圆形
+            Ellipse(hdc, 340, 325, 360, 345); // 绘制圆形
             DeleteObject(redBrush);
         }
 
@@ -482,6 +519,20 @@ std::vector<BYTE> ParseKeyCombo(const std::wstring& keyCombo)
         else if (_wcsicmp(key.c_str(), L"Tab") == 0) keys.push_back(VK_TAB);
         else if (_wcsicmp(key.c_str(), L"Enter") == 0) keys.push_back(VK_RETURN);
         else if (_wcsicmp(key.c_str(), L"Esc") == 0) keys.push_back(VK_ESCAPE);
+        else if (_wcsicmp(key.c_str(), L"-") == 0) keys.push_back(VK_OEM_MINUS);
+        else if (_wcsicmp(key.c_str(), L"+") == 0) keys.push_back(VK_OEM_PLUS);
+        else if (_wcsicmp(key.c_str(), L"F1") == 0) keys.push_back(VK_F1);
+        else if (_wcsicmp(key.c_str(), L"F2") == 0) keys.push_back(VK_F2);
+        else if (_wcsicmp(key.c_str(), L"F3") == 0) keys.push_back(VK_F3);
+        else if (_wcsicmp(key.c_str(), L"F4") == 0) keys.push_back(VK_F4);
+        else if (_wcsicmp(key.c_str(), L"F5") == 0) keys.push_back(VK_F5);
+        else if (_wcsicmp(key.c_str(), L"F6") == 0) keys.push_back(VK_F6);
+        else if (_wcsicmp(key.c_str(), L"F7") == 0) keys.push_back(VK_F7);
+        else if (_wcsicmp(key.c_str(), L"F8") == 0) keys.push_back(VK_F8);
+        else if (_wcsicmp(key.c_str(), L"F9") == 0) keys.push_back(VK_F9);
+        else if (_wcsicmp(key.c_str(), L"F10") == 0) keys.push_back(VK_F10);
+        else if (_wcsicmp(key.c_str(), L"F11") == 0) keys.push_back(VK_F11);
+        else if (_wcsicmp(key.c_str(), L"F12") == 0) keys.push_back(VK_F12);
         else if (key.length() == 1) keys.push_back(VkKeyScan(key[0])); // 普通字符
     }
 
@@ -489,7 +540,7 @@ std::vector<BYTE> ParseKeyCombo(const std::wstring& keyCombo)
 }
 
 
-void sendKeyToListBoxsDown(char key)
+void sendKeyToListBoxsDown(int key)
 {
     // 执行按键发送
     if (key != '\0')
@@ -514,7 +565,7 @@ void sendKeyToListBoxsDown(char key)
 }
 
 
-void sendKeyToListBoxsUp(char key)
+void sendKeyToListBoxsUp(int key)
 {
     // 执行按键发送
     if (key != '\0')
@@ -539,7 +590,7 @@ void sendKeyToListBoxsUp(char key)
     }
 }
 
-void sendKeyToListBoxs(char key)
+void sendKeyToListBoxs(int key)
 {
     // 执行按键发送
     if (key != '\0')
@@ -581,4 +632,77 @@ INT_PTR CALLBACK About(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
         break;
     }
     return (INT_PTR)FALSE;
+}
+
+
+INT_PTR CALLBACK BATCH_LOGINS(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
+{
+    //batchGameLogin::logins_file("WoW.exe", L"魔兽世界", "accounts.txt");
+
+    UNREFERENCED_PARAMETER(lParam);
+    switch (message)
+    {
+    case WM_INITDIALOG:
+        return (INT_PTR)TRUE;
+
+    case WM_COMMAND:
+
+        switch (LOWORD(wParam)) {
+            case IDCANCEL:
+                EndDialog(hDlg, LOWORD(wParam));
+                return (INT_PTR)TRUE;
+
+            case IDC_LOGIN_EXE_EDIT1:
+            case IDC_LOGIN_ACCOUNTS_EDIT2: {
+                // 当输入框内容更新时，检查是否包含空格，若包含则弹出文件选择器
+                if (HIWORD(wParam) == EN_UPDATE) {
+                    std::wstring text = GetEditText(hDlg, LOWORD(wParam));
+                    if (wcschr(text.c_str(), L' ')) {  // wcschr 查找第一个空格
+                        SelectFile(GetDlgItem(hDlg, LOWORD(wParam)));
+                    }
+                }
+                break;
+            }
+
+            case ID_LOGINS_OK: {
+                // 获取输入框内容
+                std::wstring exeText = GetEditText(hDlg, IDC_LOGIN_EXE_EDIT1);
+                std::wstring acctText = GetEditText(hDlg, IDC_LOGIN_ACCOUNTS_EDIT2);
+
+                // 转换为 std::string
+                std::string exeAddr = WcharToString(exeText.c_str());
+                std::string acctAddr = WcharToString(acctText.c_str());
+
+                if (!exeAddr.empty() && !acctAddr.empty()) {
+                    batchGameLogin::logins_file(exeAddr, L"", acctAddr);
+                }
+                return (INT_PTR)TRUE;
+            }
+
+            default:
+                break;
+        }
+    }
+    return (INT_PTR)FALSE;
+}
+
+// 选择文件并填入输入框
+void SelectFile(HWND hEdit)
+{
+    OPENFILENAME ofn;
+    wchar_t szFile[MAX_PATH] = { 0 };
+
+    ZeroMemory(&ofn, sizeof(ofn));
+    ofn.lStructSize = sizeof(ofn);
+    ofn.hwndOwner = hEdit;
+    ofn.lpstrFilter = L"All Files\0*.*\0Text Files\0*.TXT\0";
+    ofn.lpstrFile = szFile;
+    ofn.nMaxFile = MAX_PATH;
+    ofn.Flags = OFN_PATHMUSTEXIST | OFN_FILEMUSTEXIST;
+    ofn.lpstrTitle = L"选择文件";
+
+    if (GetOpenFileName(&ofn))
+    {
+        SetWindowText(hEdit, szFile);  // 将文件路径填充到输入框
+    }
 }
