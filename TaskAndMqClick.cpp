@@ -673,9 +673,31 @@ INT_PTR CALLBACK BATCH_LOGINS(HWND hDlg, UINT message, WPARAM wParam, LPARAM lPa
                 std::string exeAddr = WcharToString(exeText.c_str());
                 std::string acctAddr = WcharToString(acctText.c_str());
 
-                if (!exeAddr.empty() && !acctAddr.empty()) {
-                    batchGameLogin::logins_file(exeAddr, L"", acctAddr);
+                if (exeAddr.empty()) {
+                    exeAddr = "WoW.exe";
                 }
+
+
+                if (acctAddr.empty()) {
+                    acctAddr = "accounts.txt";
+                }
+
+
+                if (!exeAddr.empty() && !acctAddr.empty()) {
+                    //batchGameLogin::logins_file(exeAddr, L"", acctAddr);
+                    std::vector<batchGameLogin::ProcessInfo> processList= batchGameLogin::logins_file_and_splite_screen(exeAddr, L"", acctAddr);
+
+                    for (auto& proc : processList) {
+
+                        WCHAR buffer[100];
+                        swprintf_s(buffer, L"Window ID: 0x%08X, PID: %u", (UINT)proc.hwnd, proc.pi.dwProcessId);
+                        SendMessage(hListBox, LB_ADDSTRING, 0, (LPARAM)buffer);
+                    }
+
+
+                    processList.clear();
+                }
+                EndDialog(hDlg, LOWORD(wParam));
                 return (INT_PTR)TRUE;
             }
 
