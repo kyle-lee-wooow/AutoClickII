@@ -13,6 +13,9 @@
 #include <iostream>
 #include <locale>  // 必须包含这个头文件
 
+#include <uxtheme.h>
+#pragma comment(lib, "UxTheme.lib")
+
 #pragma comment(lib, "comctl32.lib")
 
 #define MAX_LOADSTRING 100
@@ -158,6 +161,13 @@ ATOM MyRegisterClass(HINSTANCE hInstance)
     return RegisterClassExW(&wcex);
 }
 
+
+int setTheme(HWND hWnd) {
+    SetWindowTheme(hWnd, L"Explorer", NULL);
+    //SetWindowTheme(hWnd, L"Windows", NULL);
+    return 1;
+}
+
 BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 {
     hInst = hInstance;
@@ -188,7 +198,9 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
     ShowWindow(hWnd, nCmdShow);
     UpdateWindow(hWnd);
 
-
+    //美化
+    setTheme(hWnd);
+    setTheme(hListBox);
 
     return TRUE;
 }
@@ -232,6 +244,10 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 
             hEditC[i] = CreateWindowW(L"EDIT", L"", WS_VISIBLE | WS_CHILD | WS_BORDER | ES_AUTOHSCROLL,
                 startX + checkBoxWidth + gap + textWidth + editWidth + gap + textWidth * 2, startY + i * rowHeight, editWidth, 20, hWnd, (HMENU)(EDIT_C_BASE_ID + i), hInst, NULL);
+
+            setTheme(hCheckBoxes[i]);
+            setTheme(hEditB[i]);
+            setTheme(hEditC[i]); 
         }
 
         // 设置开箱子
@@ -260,6 +276,9 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
         TaskStopBtn = CreateWindowW(L"BUTTON", L"停止", WS_VISIBLE | WS_CHILD | BS_PUSHBUTTON,
             500, 320, 80, 30, hWnd, (HMENU)1002, hInst, NULL);
 
+
+        setTheme(TaskStartBtn);
+        setTheme(TaskStopBtn); 
         RegisterHotKey(hWnd, HOTKEY_ID, MOD_CONTROL | MOD_ALT, 'A');
 
     }
