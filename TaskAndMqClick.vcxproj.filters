@@ -30,9 +30,33 @@
     <ClInclude Include="batch_login.h">
       <Filter>头文件</Filter>
     </ClInclude>
+    <ClInclude Include="with_mqtt.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="MsgParse.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="CfgReader.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="cfg.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="TaskAndMqClick.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="with_mqtt.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="MsgParse.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="CfgReader.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="cfg.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
   </ItemGroup>

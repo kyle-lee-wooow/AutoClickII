@@ -1,7 +1,6 @@
 ﻿// TaskAndMqClick.cpp : 定义应用程序的入口点。
 
 #include "framework.h"
-#include "TaskAndMqClick.h"
 #include <windows.h>
 #include <string>
 #include <commctrl.h>
@@ -12,10 +11,11 @@
 #include <sstream>
 #include <iostream>
 #include <locale>  // 必须包含这个头文件
-
 #include <uxtheme.h>
-#pragma comment(lib, "UxTheme.lib")
+#include "TaskAndMqClick.h"
+#include "cfg.h"
 
+#pragma comment(lib, "UxTheme.lib")
 #pragma comment(lib, "comctl32.lib")
 
 #define MAX_LOADSTRING 100
@@ -43,6 +43,10 @@ HWND TaskStopBtn;
 HWND hCheckBoxes[L_TASK_COUNTS];
 HWND hEditB[L_TASK_COUNTS];
 HWND hEditC[L_TASK_COUNTS];
+HWND mainHWnd;
+
+//本地文件配置
+std::unique_ptr<CFG> l_config;  // 使用 unique_ptr
 
 
 // 用来存储每一行的下次执行时间
@@ -59,10 +63,19 @@ void sendKeyToListBoxsUp(int key);
 HBRUSH hGreenBrush, hRedBrush; // 按钮背景色画刷
 
 
+
+bool isTaskRunning = false;  // 任务是否正在执行
+std::thread taskThread;      // 任务线程
+
+bool remoteCtrlisTaskRunning = false;  // 远控任务是否正在执行
+
+//处理远程控制事件
+void withRemoteCtrlHandler(const std::string& message);
+
+
 //多个案件
 void sendMultipleKeysToListBoxs(const std::wstring& keyCombo);
 std::vector<BYTE> ParseKeyCombo(const std::wstring& keyCombo);
-
 
 //多按键发送
 std::vector<std::vector<BYTE>> ParseMultipleKeyCombos(const std::wstring& keyCombos);
@@ -71,7 +84,6 @@ INT_PTR CALLBACK About(HWND, UINT, WPARAM, LPARAM);
 
 //批量登录 
 INT_PTR CALLBACK BATCH_LOGINS(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam);
-
 
 //选择本地文件
 void SelectFile(HWND hEdit);
@@ -95,6 +107,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 
     HACCEL hAccelTable = LoadAccelerators(hInstance, MAKEINTRESOURCE(IDC_TASKANDMQCLICK));
     MSG msg;
+    l_config = std::make_unique<CFG>("./TaskAndMqClick.ini");  // 智能指针初始化
 
     while (GetMessage(&msg, nullptr, 0, 0))
     {
@@ -109,8 +122,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
     return (int)msg.wParam;
 }
 
-bool isTaskRunning = false;  // 任务是否正在执行
-std::thread taskThread;      // 任务线程
+
 
 // 启动任务A的函数
 void StartTaskA(HWND hWnd) {
@@ -175,31 +187,31 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
     //HWND hWnd = CreateWindowW(szWindowClass, szTitle, WS_OVERLAPPEDWINDOW,
         //CW_USEDEFAULT, 0, 600, 400, nullptr, nullptr, hInstance, nullptr);
 
-    HWND hWnd = CreateWindowW(szWindowClass, szTitle,
+    mainHWnd = CreateWindowW(szWindowClass, szTitle,
         WS_OVERLAPPEDWINDOW | WS_TABSTOP,  // 确保支持键盘输入
         CW_USEDEFAULT, CW_USEDEFAULT, 700, 500,
         nullptr, nullptr, hInstance, nullptr);
 
 
-    if (!hWnd)
+    if (!mainHWnd)
     {
         return FALSE;
     }
 
     hListBox = CreateWindowW(L"LISTBOX", NULL, WS_CHILD | WS_VISIBLE | WS_VSCROLL | LBS_NOTIFY | WS_BORDER,
-        10, 10, 200, 350, hWnd, (HMENU)ID_LISTBOX, hInstance, NULL);
+        10, 10, 200, 350, mainHWnd, (HMENU)ID_LISTBOX, hInstance, NULL);
 
 
 
     // 设置定时器，定时触发WM_TIMER消息
-    SetTimer(hWnd, TIMER_ID, INTERVAL_MS, NULL);
+    SetTimer(mainHWnd, TIMER_ID, INTERVAL_MS, NULL);
 
 
-    ShowWindow(hWnd, nCmdShow);
-    UpdateWindow(hWnd);
+    ShowWindow(mainHWnd, nCmdShow);
+    UpdateWindow(mainHWnd);
 
     //美化
-    setTheme(hWnd);
+    setTheme(mainHWnd);
     setTheme(hListBox);
 
     return TRUE;
@@ -245,26 +257,27 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
             hEditC[i] = CreateWindowW(L"EDIT", L"", WS_VISIBLE | WS_CHILD | WS_BORDER | ES_AUTOHSCROLL,
                 startX + checkBoxWidth + gap + textWidth + editWidth + gap + textWidth * 2, startY + i * rowHeight, editWidth, 20, hWnd, (HMENU)(EDIT_C_BASE_ID + i), hInst, NULL);
 
+            SetWindowTextW(hEditC[i], std::to_wstring(i).c_str());
+            SetWindowTextW(hEditB[i], L"10");
+            
             setTheme(hCheckBoxes[i]);
             setTheme(hEditB[i]);
             setTheme(hEditC[i]); 
+
+
+
         }
 
         // 设置开箱子
-        SetWindowTextW(hEditB[7], L"30");
+        SetWindowTextW(hEditB[8], L"30");
         // 设置开箱子
-        SetWindowTextW(hEditC[7], L"Shift+8");
+        SetWindowTextW(hEditC[8], L"Shift+8");
 
         // 设置自动打怪
-        SetWindowTextW(hEditB[0], L"1");
-        // 设置自动打怪
-        SetWindowTextW(hEditC[0], L"0");
-
+        SetWindowTextW(hEditB[0], L"1"); 
 
         // 设置自动摧毁
-        SetWindowTextW(hEditB[6], L"600");
-        // 设置自动摧毁
-        SetWindowTextW(hEditC[6], L"7");
+        SetWindowTextW(hEditB[7], L"600");
 
 
 
@@ -358,6 +371,27 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
             break;
         case IDM_LOGINS:
             DialogBox(hInst, MAKEINTRESOURCE(IDD_LOGINSBOX), hWnd, BATCH_LOGINS);
+            break;
+
+        case ID_REMOTE_CTRL_RUN:{
+            if (!l_config->fileExists()) { break; }
+            remoteCtrlisTaskRunning = true;
+            std::string mqaddr = l_config->getString("mqtt", "SERVER_ADDRESS");
+            std::string name = l_config->getString("mqtt", "MQ_NAME");
+            std::string MQ_PWD = l_config->getString("mqtt", "MQ_PWD");
+
+            RemoteCtrl::Conntection::getInstance().setMQTTParam(mqaddr, name, MQ_PWD);
+
+            // 在新线程中启动 loading()
+            std::thread([]() {
+               
+                RemoteCtrl::Conntection::getInstance().loading(withRemoteCtrlHandler);
+                }).detach();  // 使用 detach 保证线程独立
+            break;
+        }
+        case ID_REMOTE_CTRL_STOP:
+            remoteCtrlisTaskRunning = false;
+            RemoteCtrl::Conntection::getInstance().stopMqtt();
             break;
         case IDM_EXIT:
             DestroyWindow(hWnd);
@@ -745,5 +779,100 @@ void SelectFile(HWND hEdit)
     if (GetOpenFileName(&ofn))
     {
         SetWindowText(hEdit, szFile);  // 将文件路径填充到输入框
+    }
+}
+
+// mqtt_msg
+void withRemoteCtrlHandler(const std::string& message) {
+    std::cout << "[自定义处理] 处理的消息内容: " << message << std::endl;
+
+    if (remoteCtrlisTaskRunning) {
+        //先直接按键，后续要根据类型，开启走其他命令，如开启，或者关闭
+        //sendKeyToListBoxsDown(std::stoi(message));
+
+       std::unordered_map<std::string, std::string> data;
+
+       CommandParseEr::parseMessage(message, data);
+
+         // 识别消息类型
+       CommandParseEr::MessageType type = CommandParseEr::parseMessageType(data["TYPE"]);
+
+        switch (type) {
+            case CommandParseEr::MessageType::SINGLE_KEY:
+                // parseMessage("TYPE:1|KEY:65");
+                std::cout << "Single Key Message - Key: " << data["KEY"] << "\n";
+                sendKeyToListBoxsDown(std::stoi(data["KEY"]));
+                break;
+            case CommandParseEr::MessageType::COMMAND: {
+                CommandParseEr::CommandType cmd = CommandParseEr::parseCommand(data["COMMAND"]);
+                switch (cmd) {
+                    case CommandParseEr::CommandType::START_TASK:{
+                        // parseMessage("TYPE:2|COMMAND:START_TASK|TASK_ID:task_001");
+                        std::cout << "Command: START_TASK - Task ID: " << data["TASK_ID"] << "\n";
+                        StartTaskA(mainHWnd);
+                        break;
+                    }
+                    case CommandParseEr::CommandType::STOP_TASK:{
+                        // parseMessage("TYPE:2|COMMAND:STOP_TASK");
+                        std::cout << "Command: STOP_TASK\n";
+                        StopTaskA(mainHWnd);
+                        break;
+                    }
+                    case CommandParseEr::CommandType::CHECK_CHECKBOX:{
+                        //parseMessage("TYPE:2|COMMAND:CHECK_CHECKBOX|CHECKBOX_ID:chk_123");
+                        std::cout << "Command: CHECK_CHECKBOX - Checkbox ID: " << data["CHECKBOX_ID"] << "\n";
+                        int  ck_id = std::stoi(data["CHECKBOX_ID"]);
+                        if (ck_id < L_TASK_COUNTS) {
+                            SendMessage(hCheckBoxes[ck_id], BM_SETCHECK, BST_CHECKED, 0);    // 选中复选框
+                        }
+
+                        break;
+                    }
+                    case CommandParseEr::CommandType::UNCHECK_CHECKBOX:{
+                        std::cout << "Command: UNCHECK_CHECKBOX - Checkbox ID: " << data["CHECKBOX_ID"] << "\n";
+                        int  uck_id = std::stoi(data["CHECKBOX_ID"]);
+                        if (uck_id < L_TASK_COUNTS) {
+                            SendMessage(hCheckBoxes[uck_id], BM_SETCHECK, BST_UNCHECKED, 0);  // 取消选中复选框
+                        }
+                        break;
+                    }
+
+                    case CommandParseEr::CommandType::WOW_SAY: {
+                        //parseMessage("TYPE:2|COMMAND:CHECK_CHECKBOX|CHECKBOX_ID:chk_123");
+                        std::cout << "Command: CHECK_CHECKBOX - Checkbox ID: " << data["CONTENT"] << "\n";
+                       //按键 ENTER
+                        sendKeyToListBoxsDown(VK_RETURN);
+                        std::this_thread::sleep_for(std::chrono::milliseconds(100)); // 短暂延迟防止冲突
+
+                        std::string kesy = data["CONTENT"];
+                        // 使用范围 for 循环遍历字符串
+                        for (char c : kesy) {
+                            sendKeyToListBoxsDown(VkKeyScan(c));
+                        }
+
+                        std::this_thread::sleep_for(std::chrono::milliseconds(100)); // 短暂延迟防止冲突
+                        //按键 ENTER
+                        sendKeyToListBoxsDown(VK_RETURN);
+
+                        break;
+                    }
+                    default:{
+                        std::cout << "Unknown Command\n"; 
+                    }
+                }
+                break;
+            }
+            case CommandParseEr::MessageType::MULTI_KEY: {
+                //parseMessage("TYPE:3|KEYS:Shift+6");
+                std::cout << "Multi Key Message - Keys: " << data["KEYS"] << "\n";
+                std::string kesy = data["KEYS"];
+
+                sendMultipleKeysToListBoxs(stringToWstring(kesy));
+                break;
+            }
+            default:
+                std::cout << "Invalid Message Format\n";
+            }
+
     }
 }
