@@ -91,29 +91,42 @@ namespace RemoteCtrl{
         int loading(std::function<void(const std::string&)> func) {
 
             if (lisTaskRunning) { return 0; }; 
-                        
+                
+            // 设置连接参数
+            auto connOpts = mqtt::connect_options_builder()
+                .user_name(MQ_NAME)
+                .password(MQ_PWD)
+                .clean_session()
+                .automatic_reconnect(std::chrono::seconds(3), std::chrono::seconds(30)) // 自动重连机制
+                .finalize();
+     
+            if (!client) {
+                std::string clientID = GenerateTimeBasedID();
+                client = std::make_unique<mqtt::async_client>(SERVER_ADDRESS, clientID);
 
-                        mqtt::async_client client(SERVER_ADDRESS, GenerateTimeBasedID());
+                callback = std::make_unique<Callback>(*client, connOpts);
+                callback->setCallFunc(func);
+                client->set_callback(*callback);
 
-                        // 设置连接参数
-                        auto connOpts = mqtt::connect_options_builder()
-                            .user_name(MQ_NAME)
-                            .password(MQ_PWD)
-                            .clean_session()
-                            .automatic_reconnect(std::chrono::seconds(3), std::chrono::seconds(30)) // 自动重连机制
-                            .finalize();
+            }
+           
 
-                        Callback callback(client, connOpts);
-                        callback.setCallFunc(func);
-                        client.set_callback(callback);
+          
+            
+                      
 
                         try {
                             std::cout << "正在连接至 MQTT 服务器..." << std::endl;
-                            client.connect(connOpts)->wait();
+                            if (!isetParam) {
+                                client->connect(connOpts)->wait();
+                            }
+                            else {
+                                client->reconnect()->wait();
+                            }
                             std::cout << " 已成功连接！" << std::endl;
 
                             // 订阅主题
-                            client.subscribe(TOPIC, 1)->wait();
+                            client->subscribe(TOPIC, 1)->wait();
                             std::cout << "已成功订阅主题：" << TOPIC << std::endl;
 
                             // 保持程序持续运行
@@ -129,6 +142,7 @@ namespace RemoteCtrl{
          
          
             lisTaskRunning = true;
+            isetParam = true;
             // 等待条件变量的信号来阻止主线程退出
             std::unique_lock<std::mutex> lock(mtx);
             cv.wait(lock);
@@ -143,11 +157,14 @@ namespace RemoteCtrl{
         }
     private:
         bool lisTaskRunning = false;  // 任务是否正在执行
+        bool isetParam = false;  // 是否已经初始化
  
         Conntection() {};
         ~Conntection() {};
         std::condition_variable cv;
         std::mutex mtx;
+        std::unique_ptr<mqtt::async_client> client;
+        std::unique_ptr<Callback> callback;
 
     };
 

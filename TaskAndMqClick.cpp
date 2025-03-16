@@ -565,6 +565,7 @@ std::vector<BYTE> ParseKeyCombo(const std::wstring& keyCombo)
 
     while (std::getline(stream, key, L'+')) // 以 '+' 拆分组合键
     {
+        int key_l = key.length();
         if (_wcsicmp(key.c_str(), L"Ctrl") == 0) keys.push_back(VK_CONTROL);
         else if (_wcsicmp(key.c_str(), L"Alt") == 0) keys.push_back(VK_MENU);
         else if (_wcsicmp(key.c_str(), L"Space") == 0) keys.push_back(VK_SPACE);
@@ -586,7 +587,9 @@ std::vector<BYTE> ParseKeyCombo(const std::wstring& keyCombo)
         else if (_wcsicmp(key.c_str(), L"F10") == 0) keys.push_back(VK_F10);
         else if (_wcsicmp(key.c_str(), L"F11") == 0) keys.push_back(VK_F11);
         else if (_wcsicmp(key.c_str(), L"F12") == 0) keys.push_back(VK_F12);
-        else if (key.length() == 1) keys.push_back(VkKeyScan(key[0])); // 普通字符
+        else if (key.length() > 0) { 
+            keys.push_back(VkKeyScan(key[0]));
+        } // 普通字符
     }
 
     return keys;
@@ -786,93 +789,108 @@ void SelectFile(HWND hEdit)
 void withRemoteCtrlHandler(const std::string& message) {
     std::cout << "[自定义处理] 处理的消息内容: " << message << std::endl;
 
-    if (remoteCtrlisTaskRunning) {
-        //先直接按键，后续要根据类型，开启走其他命令，如开启，或者关闭
-        //sendKeyToListBoxsDown(std::stoi(message));
+    try {
+        if (remoteCtrlisTaskRunning) {
+            //先直接按键，后续要根据类型，开启走其他命令，如开启，或者关闭
+            //sendKeyToListBoxsDown(std::stoi(message));
 
-       std::unordered_map<std::string, std::string> data;
+            std::unordered_map<std::string, std::string> data;
 
-       CommandParseEr::parseMessage(message, data);
+            CommandParseEr::parseMessage(message, data);
 
-         // 识别消息类型
-       CommandParseEr::MessageType type = CommandParseEr::parseMessageType(data["TYPE"]);
+            // 识别消息类型
+            CommandParseEr::MessageType type = CommandParseEr::parseMessageType(data["TYPE"]);
 
-        switch (type) {
+            switch (type) {
             case CommandParseEr::MessageType::SINGLE_KEY:
                 // parseMessage("TYPE:1|KEY:65");
-                std::cout << "Single Key Message - Key: " << data["KEY"] << "\n";
-                sendKeyToListBoxsDown(std::stoi(data["KEY"]));
+            {
+                std::cout << "Single Key Message - Key: " << data["KEY_ID"] << "\n";
+                int key_id = std::stoi(data["KEY_ID"]);
+                sendKeyToListBoxs(key_id);
                 break;
+            }
             case CommandParseEr::MessageType::COMMAND: {
                 CommandParseEr::CommandType cmd = CommandParseEr::parseCommand(data["COMMAND"]);
                 switch (cmd) {
-                    case CommandParseEr::CommandType::START_TASK:{
-                        // parseMessage("TYPE:2|COMMAND:START_TASK|TASK_ID:task_001");
-                        std::cout << "Command: START_TASK - Task ID: " << data["TASK_ID"] << "\n";
-                        StartTaskA(mainHWnd);
-                        break;
-                    }
-                    case CommandParseEr::CommandType::STOP_TASK:{
-                        // parseMessage("TYPE:2|COMMAND:STOP_TASK");
-                        std::cout << "Command: STOP_TASK\n";
-                        StopTaskA(mainHWnd);
-                        break;
-                    }
-                    case CommandParseEr::CommandType::CHECK_CHECKBOX:{
-                        //parseMessage("TYPE:2|COMMAND:CHECK_CHECKBOX|CHECKBOX_ID:chk_123");
-                        std::cout << "Command: CHECK_CHECKBOX - Checkbox ID: " << data["CHECKBOX_ID"] << "\n";
-                        int  ck_id = std::stoi(data["CHECKBOX_ID"]);
-                        if (ck_id < L_TASK_COUNTS) {
-                            SendMessage(hCheckBoxes[ck_id], BM_SETCHECK, BST_CHECKED, 0);    // 选中复选框
-                        }
-
-                        break;
-                    }
-                    case CommandParseEr::CommandType::UNCHECK_CHECKBOX:{
-                        std::cout << "Command: UNCHECK_CHECKBOX - Checkbox ID: " << data["CHECKBOX_ID"] << "\n";
-                        int  uck_id = std::stoi(data["CHECKBOX_ID"]);
-                        if (uck_id < L_TASK_COUNTS) {
-                            SendMessage(hCheckBoxes[uck_id], BM_SETCHECK, BST_UNCHECKED, 0);  // 取消选中复选框
-                        }
-                        break;
+                case CommandParseEr::CommandType::START_TASK: {
+                    // parseMessage("TYPE:2|COMMAND:START_TASK|TASK_ID:task_001");
+                    std::cout << "Command: START_TASK - Task ID: " << data["TASK_ID"] << "\n";
+                    StartTaskA(mainHWnd);
+                    break;
+                }
+                case CommandParseEr::CommandType::STOP_TASK: {
+                    // parseMessage("TYPE:2|COMMAND:STOP_TASK");
+                    std::cout << "Command: STOP_TASK\n";
+                    StopTaskA(mainHWnd);
+                    break;
+                }
+                case CommandParseEr::CommandType::CHECK_CHECKBOX: {
+                    //parseMessage("TYPE:2|COMMAND:CHECK_CHECKBOX|CHECKBOX_ID:chk_123");
+                    std::cout << "Command: CHECK_CHECKBOX - Checkbox ID: " << data["CHECKBOX_ID"] << "\n";
+                    int  ck_id = std::stoi(data["CHECKBOX_ID"]);
+                    if (ck_id < L_TASK_COUNTS) {
+                        SendMessage(hCheckBoxes[ck_id], BM_SETCHECK, BST_CHECKED, 0);    // 选中复选框
                     }
 
-                    case CommandParseEr::CommandType::WOW_SAY: {
-                        //parseMessage("TYPE:2|COMMAND:CHECK_CHECKBOX|CHECKBOX_ID:chk_123");
-                        std::cout << "Command: CHECK_CHECKBOX - Checkbox ID: " << data["CONTENT"] << "\n";
-                       //按键 ENTER
-                        sendKeyToListBoxsDown(VK_RETURN);
-                        std::this_thread::sleep_for(std::chrono::milliseconds(100)); // 短暂延迟防止冲突
-
-                        std::string kesy = data["CONTENT"];
-                        // 使用范围 for 循环遍历字符串
-                        for (char c : kesy) {
-                            sendKeyToListBoxsDown(VkKeyScan(c));
-                        }
-
-                        std::this_thread::sleep_for(std::chrono::milliseconds(100)); // 短暂延迟防止冲突
-                        //按键 ENTER
-                        sendKeyToListBoxsDown(VK_RETURN);
-
-                        break;
+                    break;
+                }
+                case CommandParseEr::CommandType::UNCHECK_CHECKBOX: {
+                    std::cout << "Command: UNCHECK_CHECKBOX - Checkbox ID: " << data["CHECKBOX_ID"] << "\n";
+                    int  uck_id = std::stoi(data["CHECKBOX_ID"]);
+                    if (uck_id < L_TASK_COUNTS) {
+                        SendMessage(hCheckBoxes[uck_id], BM_SETCHECK, BST_UNCHECKED, 0);  // 取消选中复选框
                     }
-                    default:{
-                        std::cout << "Unknown Command\n"; 
+                    break;
+                }
+
+                case CommandParseEr::CommandType::WOW_SAY: {
+                    //parseMessage("TYPE:2|COMMAND:CHECK_CHECKBOX|CHECKBOX_ID:chk_123");
+                    std::cout << "Command: CHECK_CHECKBOX - Checkbox ID: " << data["CONTENT"] << "\n";
+                    //按键 ENTER
+
+                    sendKeyToListBoxs(VK_RETURN);
+                    std::this_thread::sleep_for(std::chrono::milliseconds(100)); // 短暂延迟防止冲突
+
+                    std::string kesy = data["CONTENT"];
+                    // 使用范围 for 循环遍历字符串
+                    for (char c : kesy) {
+                        sendKeyToListBoxsDown(VkKeyScan(c));
                     }
+
+                    std::this_thread::sleep_for(std::chrono::milliseconds(100)); // 短暂延迟防止冲突
+                    //按键 ENTER
+                    sendKeyToListBoxs(VK_RETURN);
+
+
+                    break;
+                }
+                default: {
+                    std::cout << "Unknown Command\n";
+                }
                 }
                 break;
             }
             case CommandParseEr::MessageType::MULTI_KEY: {
                 //parseMessage("TYPE:3|KEYS:Shift+6");
-                std::cout << "Multi Key Message - Keys: " << data["KEYS"] << "\n";
-                std::string kesy = data["KEYS"];
+                std::cout << "Multi Key Message - Keys: " << data["KEYS_ID"] << "\n";
+                std::string kesy_ids = data["KEYS_ID"];
+                
+                if (kesy_ids.length() >0) {
+                    std::wstring ws_ids= stringToWstring(kesy_ids);
+                    sendMultipleKeysToListBoxs(ws_ids);
+                }
 
-                sendMultipleKeysToListBoxs(stringToWstring(kesy));
+
                 break;
             }
             default:
                 std::cout << "Invalid Message Format\n";
             }
 
+        }
+    } catch (const mqtt::exception& exc) {
+        std::cerr << "错误: " << exc.what() << std::endl;
+        
     }
 }
