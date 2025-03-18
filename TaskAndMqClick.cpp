@@ -60,6 +60,8 @@ void sendKeyToListBoxs(int key);
 void sendKeyToListBoxsDown(int key);
 void sendKeyToListBoxsUp(int key);
 
+void sendMessageToListBoxs(const std::wstring& text);
+
 HBRUSH hGreenBrush, hRedBrush; // 按钮背景色画刷
 
 
@@ -70,7 +72,7 @@ std::thread taskThread;      // 任务线程
 bool remoteCtrlisTaskRunning = false;  // 远控任务是否正在执行
 
 //处理远程控制事件
-void withRemoteCtrlHandler(const std::string& message);
+void withRemoteCtrlHandler(const std::wstring& message);
 
 
 //多个案件
@@ -671,6 +673,102 @@ void sendKeyToListBoxs(int key)
     }
 }
 
+// 将文本复制到剪贴板
+void CopyToClipboard(const std::wstring& text) {
+    if (!OpenClipboard(nullptr)) return;
+
+    EmptyClipboard(); // 清空剪贴板
+    HGLOBAL hMem = GlobalAlloc(GMEM_MOVEABLE, (text.size() + 1) * sizeof(wchar_t));
+    if (!hMem) {
+        CloseClipboard();
+        return;
+    }
+
+    // 将文本复制到内存
+    wchar_t* pMem = static_cast<wchar_t*>(GlobalLock(hMem));
+    wcscpy_s(pMem, text.size() + 1, text.c_str());
+    GlobalUnlock(hMem);
+
+    // 将内存数据放入剪贴板
+    SetClipboardData(CF_UNICODETEXT, hMem);
+    CloseClipboard();
+}
+
+
+void PasteText() {
+    INPUT inputs[4] = {};
+
+    inputs[0].type = INPUT_KEYBOARD;  // Ctrl Down
+    inputs[0].ki.wVk = VK_CONTROL;
+
+    inputs[1].type = INPUT_KEYBOARD;  // V Down
+    inputs[1].ki.wVk = 'V';
+
+    inputs[2].type = INPUT_KEYBOARD;  // V Up
+    inputs[2].ki.wVk = 'V';
+    inputs[2].ki.dwFlags = KEYEVENTF_KEYUP;
+
+    inputs[3].type = INPUT_KEYBOARD;  // Ctrl Up
+    inputs[3].ki.wVk = VK_CONTROL;
+    inputs[3].ki.dwFlags = KEYEVENTF_KEYUP;
+
+    SendInput(4, inputs, sizeof(INPUT));
+}
+
+// 向指定窗口发送粘贴命令
+void PasteToWindow(HWND hwnd) {
+    if (!IsWindow(hwnd)) {
+        std::cerr << "窗口ID无效或窗口已关闭。" << std::endl;
+        return;
+    }
+
+    // 激活目标窗口
+    SetForegroundWindow(hwnd);
+
+    //// 向窗口发送 Ctrl+V 快捷键 (通用方法)
+    //PostMessage(hwnd, WM_KEYDOWN, VK_CONTROL, 0);
+    //PostMessage(hwnd, WM_KEYDOWN, 'V', 0);
+    //PostMessage(hwnd, WM_KEYUP, 'V', 0);
+    //PostMessage(hwnd, WM_KEYUP, VK_CONTROL, 0);
+
+    // 有些窗口可能更支持 WM_PASTE 消息
+    //PostMessage(hwnd, WM_PASTE, 0, 0);
+
+    PasteText();
+}
+
+void sendMessageToListBoxs(const std::wstring& text)
+{
+    // 执行按键发送
+    if (text.length()> 0)
+    {
+        int count = SendMessage(hListBox, LB_GETCOUNT, 0, 0);
+        CopyToClipboard(text);
+
+        for (int j = 0; j < count; j++)
+        {
+            WCHAR buffer[100];
+            SendMessage(hListBox, LB_GETTEXT, j, (LPARAM)buffer);
+
+            UINT windowID;
+            if (swscanf_s(buffer, L"Window ID: 0x%08X", &windowID) == 1)
+            {
+                HWND targetWindow = (HWND)windowID;
+                if (IsWindow(targetWindow))
+                {
+                    
+                    PasteToWindow(targetWindow);
+
+                    //这种方式不支持中文，太麻烦了。。。
+                    //for (wchar_t ch : text) {
+                    //    PostMessage(targetWindow, WM_CHAR, ch, 0);            // 输入字符
+                    //}
+                }
+            }
+        }
+    }
+}
+
 INT_PTR CALLBACK About(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
 {
     UNREFERENCED_PARAMETER(lParam);
@@ -786,36 +884,35 @@ void SelectFile(HWND hEdit)
 }
 
 // mqtt_msg
-void withRemoteCtrlHandler(const std::string& message) {
-    std::cout << "[自定义处理] 处理的消息内容: " << message << std::endl;
+void withRemoteCtrlHandler(const std::wstring& message) {
+    std::wcout << "[自定义处理] 处理的消息内容: " << message << std::endl;
 
     try {
         if (remoteCtrlisTaskRunning) {
             //先直接按键，后续要根据类型，开启走其他命令，如开启，或者关闭
             //sendKeyToListBoxsDown(std::stoi(message));
 
-            std::unordered_map<std::string, std::string> data;
+            std::unordered_map<std::wstring, std::wstring> data;
 
             CommandParseEr::parseMessage(message, data);
 
             // 识别消息类型
-            CommandParseEr::MessageType type = CommandParseEr::parseMessageType(data["TYPE"]);
+            CommandParseEr::MessageType type = CommandParseEr::parseMessageType(data[L"TYPE"]);
 
             switch (type) {
             case CommandParseEr::MessageType::SINGLE_KEY:
                 // parseMessage("TYPE:1|KEY:65");
             {
-                std::cout << "Single Key Message - Key: " << data["KEY_ID"] << "\n";
-                int key_id = std::stoi(data["KEY_ID"]);
+ 
+                int key_id = std::stoi(data[L"KEY_ID"]);
                 sendKeyToListBoxs(key_id);
                 break;
             }
             case CommandParseEr::MessageType::COMMAND: {
-                CommandParseEr::CommandType cmd = CommandParseEr::parseCommand(data["COMMAND"]);
+                CommandParseEr::CommandType cmd = CommandParseEr::parseCommand(data[L"COMMAND"]);
                 switch (cmd) {
                 case CommandParseEr::CommandType::START_TASK: {
-                    // parseMessage("TYPE:2|COMMAND:START_TASK|TASK_ID:task_001");
-                    std::cout << "Command: START_TASK - Task ID: " << data["TASK_ID"] << "\n";
+                    // parseMessage("TYPE:2|COMMAND:START_TASK|TASK_ID:task_001"); 
                     StartTaskA(mainHWnd);
                     break;
                 }
@@ -826,18 +923,16 @@ void withRemoteCtrlHandler(const std::string& message) {
                     break;
                 }
                 case CommandParseEr::CommandType::CHECK_CHECKBOX: {
-                    //parseMessage("TYPE:2|COMMAND:CHECK_CHECKBOX|CHECKBOX_ID:chk_123");
-                    std::cout << "Command: CHECK_CHECKBOX - Checkbox ID: " << data["CHECKBOX_ID"] << "\n";
-                    int  ck_id = std::stoi(data["CHECKBOX_ID"]);
+                    //parseMessage("TYPE:2|COMMAND:CHECK_CHECKBOX|CHECKBOX_ID:chk_123"); 
+                    int  ck_id = std::stoi(data[L"CHECKBOX_ID"]);
                     if (ck_id < L_TASK_COUNTS) {
                         SendMessage(hCheckBoxes[ck_id], BM_SETCHECK, BST_CHECKED, 0);    // 选中复选框
                     }
 
                     break;
                 }
-                case CommandParseEr::CommandType::UNCHECK_CHECKBOX: {
-                    std::cout << "Command: UNCHECK_CHECKBOX - Checkbox ID: " << data["CHECKBOX_ID"] << "\n";
-                    int  uck_id = std::stoi(data["CHECKBOX_ID"]);
+                case CommandParseEr::CommandType::UNCHECK_CHECKBOX: { 
+                    int  uck_id = std::stoi(data[L"CHECKBOX_ID"]);
                     if (uck_id < L_TASK_COUNTS) {
                         SendMessage(hCheckBoxes[uck_id], BM_SETCHECK, BST_UNCHECKED, 0);  // 取消选中复选框
                     }
@@ -845,18 +940,21 @@ void withRemoteCtrlHandler(const std::string& message) {
                 }
 
                 case CommandParseEr::CommandType::WOW_SAY: {
-                    //parseMessage("TYPE:2|COMMAND:CHECK_CHECKBOX|CHECKBOX_ID:chk_123");
-                    std::cout << "Command: CHECK_CHECKBOX - Checkbox ID: " << data["CONTENT"] << "\n";
+                    //parseMessage("TYPE:2|COMMAND:CHECK_CHECKBOX|CHECKBOX_ID:chk_123"); 
                     //按键 ENTER
 
                     sendKeyToListBoxs(VK_RETURN);
                     std::this_thread::sleep_for(std::chrono::milliseconds(100)); // 短暂延迟防止冲突
 
-                    std::string kesy = data["CONTENT"];
+              
                     // 使用范围 for 循环遍历字符串
-                    for (char c : kesy) {
-                        sendKeyToListBoxsDown(VkKeyScan(c));
-                    }
+                    //for (char c : kesy) {
+                    //    //这仅仅支持英文按键，由于是聊天内容，尝试换成中文输入
+                    //    sendKeyToListBoxsDown(VkKeyScan(c));
+                    //}
+
+                    sendMessageToListBoxs(data[L"CONTENT"]);
+
 
                     std::this_thread::sleep_for(std::chrono::milliseconds(100)); // 短暂延迟防止冲突
                     //按键 ENTER
@@ -873,12 +971,12 @@ void withRemoteCtrlHandler(const std::string& message) {
             }
             case CommandParseEr::MessageType::MULTI_KEY: {
                 //parseMessage("TYPE:3|KEYS:Shift+6");
-                std::cout << "Multi Key Message - Keys: " << data["KEYS_ID"] << "\n";
-                std::string kesy_ids = data["KEYS_ID"];
+                
+                std::wstring kesy_ids = data[L"KEYS_ID"];
                 
                 if (kesy_ids.length() >0) {
-                    std::wstring ws_ids= stringToWstring(kesy_ids);
-                    sendMultipleKeysToListBoxs(ws_ids);
+                
+                    sendMultipleKeysToListBoxs(kesy_ids);
                 }
 
 

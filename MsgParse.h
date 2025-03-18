@@ -18,40 +18,37 @@ namespace CommandParseEr{
         enum class MessageType { SINGLE_KEY, COMMAND, MULTI_KEY, INVALID };
 
         // 解析 Command 类型
-       inline CommandType parseCommand(const std::string& command) {
-            if (command == "START_TASK") return CommandType::START_TASK;
-            if (command == "STOP_TASK") return CommandType::STOP_TASK;
-            if (command == "CHECK_CHECKBOX") return CommandType::CHECK_CHECKBOX;
-            if (command == "UNCHECK_CHECKBOX") return CommandType::UNCHECK_CHECKBOX;
-            if (command == "WOW_SAY") return CommandType::WOW_SAY;
+       inline CommandType parseCommand(const std::wstring& command) {
+            if (command == L"START_TASK") return CommandType::START_TASK;
+            if (command == L"STOP_TASK") return CommandType::STOP_TASK;
+            if (command == L"CHECK_CHECKBOX") return CommandType::CHECK_CHECKBOX;
+            if (command == L"UNCHECK_CHECKBOX") return CommandType::UNCHECK_CHECKBOX;
+            if (command == L"WOW_SAY") return CommandType::WOW_SAY;
             return CommandType::UNKNOWN;
         }
 
         // 解析消息类型
-       inline MessageType parseMessageType(const std::string& type) {
-            if (type == "1") return MessageType::SINGLE_KEY;
-            if (type == "2") return MessageType::COMMAND;
-            if (type == "3") return MessageType::MULTI_KEY;
+       inline MessageType parseMessageType(const std::wstring& type) {
+            if (type == L"1") return MessageType::SINGLE_KEY;
+            if (type == L"2") return MessageType::COMMAND;
+            if (type == L"3") return MessageType::MULTI_KEY;
             return MessageType::INVALID;
         }
 
         // 消息解析函数
-       inline void parseMessage(const std::string& message, std::unordered_map<std::string, std::string>& data) {
-            
-            std::istringstream stream(message);
-            std::string segment;
+       inline void parseMessage(const std::wstring& message, std::unordered_map<std::wstring, std::wstring>& data) {
+           std::wstringstream stream(message); // 使用 wstringstream 处理 wstring
+           std::wstring segment;
 
-            while (std::getline(stream, segment, '|')) {
-                size_t pos = segment.find(':');
-                if (pos != std::string::npos) {
-                    std::string key = segment.substr(0, pos);
-                    std::string value = segment.substr(pos + 1);
-                    data[key] = value;
-                }
-            }
-
-           
-        }
+           while (std::getline(stream, segment, L'|')) {  // 分隔符改为宽字符 L'|'
+               size_t pos = segment.find(L':');           // 查找分隔符 L':'
+               if (pos != std::wstring::npos) {
+                   std::wstring key = segment.substr(0, pos);
+                   std::wstring value = segment.substr(pos + 1);
+                   data[key] = value;
+               }
+           }
+       }
 
        inline int test() {
             /*

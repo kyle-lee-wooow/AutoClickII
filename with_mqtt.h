@@ -2,6 +2,7 @@
 #include <iostream>
 #include <mqtt/async_client.h>
 #include <functional>  // 引入 std::function
+#include <Windows.h>
 
 const std::string TOPIC = "wow/key_sync";                    // MQTT 主题
 
@@ -12,7 +13,7 @@ namespace RemoteCtrl{
     private:
         mqtt::async_client& client;
         mqtt::connect_options connOpts;
-        std::function<void(const std::string&)> messageHandler;  // 自定义回调函数
+        std::function<void(const std::wstring&)> messageHandler;  // 自定义回调函数
         
     public:
         Callback(mqtt::async_client& cli, mqtt::connect_options opts)
@@ -20,7 +21,7 @@ namespace RemoteCtrl{
 
         }
 
-        void setCallFunc(std::function<void(const std::string&)> func) {
+        void setCallFunc(std::function<void(const std::wstring&)> func) {
             messageHandler = func;
         }
 
@@ -46,12 +47,24 @@ namespace RemoteCtrl{
                 }
             }
         }
-
+        std::wstring Utf8ToWstring(const std::string& utf8Str) {
+            int sizeNeeded = MultiByteToWideChar(CP_UTF8, 0, utf8Str.c_str(), -1, nullptr, 0);
+            std::wstring wstr(sizeNeeded, 0);
+            MultiByteToWideChar(CP_UTF8, 0, utf8Str.c_str(), -1, &wstr[0], sizeNeeded);
+            return wstr;
+        }
         // 消息回调
         void message_arrived(mqtt::const_message_ptr msg) override {
             // 执行传入的处理函数
             if (messageHandler) {
-                messageHandler(msg->to_string());
+                //messageHandler(msg->to_string());
+
+                std::string payload = msg->get_payload();
+
+                std::wstring wstr = Utf8ToWstring(payload);
+
+                messageHandler(wstr);
+
             }
         }
     };
@@ -88,7 +101,7 @@ namespace RemoteCtrl{
             std::cout << "Current timestamp (in milliseconds): " << timestamp_ms << std::endl;
             return  std::to_string(timestamp_ms);
         }
-        int loading(std::function<void(const std::string&)> func) {
+        int loading(std::function<void(const std::wstring&)> func) {
 
             if (lisTaskRunning) { return 0; }; 
                 
@@ -110,10 +123,6 @@ namespace RemoteCtrl{
 
             }
            
-
-          
-            
-                      
 
                         try {
                             std::cout << "正在连接至 MQTT 服务器..." << std::endl;

@@ -6,6 +6,22 @@
 #undef min
 #include "with_mqtt.h"
 #include "MsgParse.h"
+#include <locale>
+#include <codecvt>
+
+
+// UTF-8 ×ª»»º¯Êý
+std::string WstringToUtf8(const std::wstring& wstr) {
+    int size_needed = WideCharToMultiByte(CP_UTF8, 0, wstr.c_str(), static_cast<int>(wstr.size()), nullptr, 0, nullptr, nullptr);
+    if (size_needed == 0) {
+        return "";
+    }
+
+    std::string utf8_str(size_needed, 0);
+    WideCharToMultiByte(CP_UTF8, 0, wstr.c_str(), static_cast<int>(wstr.size()), &utf8_str[0], size_needed, nullptr, nullptr);
+
+    return utf8_str;
+}
 
 std::wstring stringToWstring(const std::string& str) {
     int size_needed = MultiByteToWideChar(CP_UTF8, 0, str.c_str(), -1, nullptr, 0);
