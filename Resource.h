@@ -21,6 +21,13 @@
 #define ID_32774                        32774
 #define ID_REMOTE_CTRL_RUN              32775
 #define ID_REMOTE_CTRL_STOP             32776
+#define ID_WINDOW_RESIZE                32777
+#define ID_32778                        32778
+#define ID_CLOSE_LISTBBOX_OK            32779
+#define ID_CLOSE_LISTBBOX_NO            32780
+#define ID_32781                        32781
+#define ID_GAME_YINGDUN                 32782
+#define ID_GAME_ZHAOMINGSHU             32783
 #define IDC_STATIC                      -1
 
 // Next default values for new objects
@@ -29,7 +36,7 @@
 #ifndef APSTUDIO_READONLY_SYMBOLS
 #define _APS_NO_MFC                     1
 #define _APS_NEXT_RESOURCE_VALUE        129
-#define _APS_NEXT_COMMAND_VALUE         32777
+#define _APS_NEXT_COMMAND_VALUE         32784
 #define _APS_NEXT_CONTROL_VALUE         1001
 #define _APS_NEXT_SYMED_VALUE           110
 #endif

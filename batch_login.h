@@ -76,7 +76,7 @@ namespace batchGameLogin{
         FlashWindowEx(&fi);
     }
 
-    void ArrangeWindows() {
+    void ArrangeWindows(std::vector<ProcessInfo> &procesLst) {
 
         int cols = 4;  // 每行最多 4 个
         int rows = 2;  // 最多 2 行
@@ -90,7 +90,7 @@ namespace batchGameLogin{
 
         int x = 10, y = 10, count = 0;
 
-        for (auto& proc : processList) {
+        for (auto& proc : procesLst) {
             if (proc.hwnd && count < maxWindows) {
 
                 MoveWindow(proc.hwnd, x, y, winWidth, winHeight, TRUE);
@@ -298,7 +298,7 @@ namespace batchGameLogin{
 
          
         //重排窗口
-        ArrangeWindows();
+        ArrangeWindows(processList);
 
         for (auto& proc : processList) {
             //等待程序关闭 --不需要

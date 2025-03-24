@@ -1,94 +1,62 @@
-﻿// TaskAndMqClick.cpp : 定义应用程序的入口点。
-
-#include "framework.h"
-#include <windows.h>
-#include <string>
-#include <commctrl.h>
-#include <thread>
-#include <vector>
-#include <string> 
-#include <commdlg.h>  // 用于文件选择对话框
-#include <sstream>
-#include <iostream>
-#include <locale>  // 必须包含这个头文件
-#include <uxtheme.h>
-#include "TaskAndMqClick.h"
-#include "cfg.h"
-
-#pragma comment(lib, "UxTheme.lib")
-#pragma comment(lib, "comctl32.lib")
-
-#define MAX_LOADSTRING 100
-#define ID_LISTBOX 101
-#define HOTKEY_ID 102  
-
-#define CHECKBOX_BASE_ID 200  
-#define EDIT_B_BASE_ID 300    
-#define EDIT_C_BASE_ID 400    
+﻿#include "TaskAndMqClick.h"
 
 
+// UTF-8 转换函数
+std::string WstringToUtf8(const std::wstring& wstr) {
+    int size_needed = WideCharToMultiByte(CP_UTF8, 0, wstr.c_str(), static_cast<int>(wstr.size()), nullptr, 0, nullptr, nullptr);
+    if (size_needed == 0) {
+        return "";
+    }
 
-#define TIMER_ID 1
-#define INTERVAL_MS 500  // 定时器触发间隔时间
+    std::string utf8_str(size_needed, 0);
+    WideCharToMultiByte(CP_UTF8, 0, wstr.c_str(), static_cast<int>(wstr.size()), &utf8_str[0], size_needed, nullptr, nullptr);
 
-// 现在可以同时执行多少个按键
-#define L_TASK_COUNTS 10
+    return utf8_str;
+}
 
-HINSTANCE hInst;
-WCHAR szTitle[MAX_LOADSTRING];
-WCHAR szWindowClass[MAX_LOADSTRING];
-HWND hListBox;
-HWND TaskStartBtn;
-HWND TaskStopBtn;
-HWND hCheckBoxes[L_TASK_COUNTS];
-HWND hEditB[L_TASK_COUNTS];
-HWND hEditC[L_TASK_COUNTS];
-HWND mainHWnd;
+std::wstring stringToWstring(const std::string& str) {
+    int size_needed = MultiByteToWideChar(CP_UTF8, 0, str.c_str(), -1, nullptr, 0);
+    std::wstring wstr(size_needed, 0);
+    MultiByteToWideChar(CP_UTF8, 0, str.c_str(), -1, &wstr[0], size_needed);
+    return wstr;
+}
 
-//本地文件配置
-std::unique_ptr<CFG> l_config;  // 使用 unique_ptr
+std::string WcharToString(const wchar_t* wstr)
+{
+    // 获取转换后的字符数
+    int len = WideCharToMultiByte(CP_UTF8, 0, wstr, -1, NULL, 0, NULL, NULL);
 
+    // 创建一个足够大的 buffer 来存放转换后的字符串
+    char* str = new char[len];
 
-// 用来存储每一行的下次执行时间
-std::chrono::steady_clock::time_point nextExecutionTimes[L_TASK_COUNTS];
+    // 执行转换
+    WideCharToMultiByte(CP_UTF8, 0, wstr, -1, str, len, NULL, NULL);
 
-ATOM MyRegisterClass(HINSTANCE hInstance);
-BOOL InitInstance(HINSTANCE, int);
-LRESULT CALLBACK WndProc(HWND, UINT, WPARAM, LPARAM);
-//单个案件
-void sendKeyToListBoxs(int key);
-void sendKeyToListBoxsDown(int key);
-void sendKeyToListBoxsUp(int key);
+    // 返回转换后的 std::string
+    std::string result(str);
 
-void sendMessageToListBoxs(const std::wstring& text);
+    delete[] str;  // 记得释放内存
+    return result;
+}
 
-HBRUSH hGreenBrush, hRedBrush; // 按钮背景色画刷
-
-
-
-bool isTaskRunning = false;  // 任务是否正在执行
-std::thread taskThread;      // 任务线程
-
-bool remoteCtrlisTaskRunning = false;  // 远控任务是否正在执行
-
-//处理远程控制事件
-void withRemoteCtrlHandler(const std::wstring& message);
+//禁用菜单
+void SetRemoteControlMenuState(HWND hWnd, bool enable) {
+    HMENU hMenu = GetMenu(hWnd); // 获取菜单句柄
+    if (hMenu) {
+        UINT state = enable ? MF_ENABLED : MF_GRAYED;
+        EnableMenuItem(hMenu, ID_REMOTE_CTRL_RUN, MF_BYCOMMAND | state);
+        EnableMenuItem(hMenu, ID_REMOTE_CTRL_STOP, MF_BYCOMMAND | state);
+        DrawMenuBar(hWnd); // 重新绘制菜单
+    }
+}
 
 
-//多个案件
-void sendMultipleKeysToListBoxs(const std::wstring& keyCombo);
-std::vector<BYTE> ParseKeyCombo(const std::wstring& keyCombo);
-
-//多按键发送
-std::vector<std::vector<BYTE>> ParseMultipleKeyCombos(const std::wstring& keyCombos);
-
-INT_PTR CALLBACK About(HWND, UINT, WPARAM, LPARAM);
-
-//批量登录 
-INT_PTR CALLBACK BATCH_LOGINS(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam);
-
-//选择本地文件
-void SelectFile(HWND hEdit);
+// 获取控件文本的函数
+std::wstring GetEditText(HWND hDlg, int controlID) {
+    wchar_t szText[256];  // 缓冲区
+    GetWindowText(GetDlgItem(hDlg, controlID), szText, sizeof(szText) / sizeof(wchar_t));
+    return std::wstring(szText);
+}
 
 int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
     _In_opt_ HINSTANCE hPrevInstance,
@@ -376,7 +344,10 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
             break;
 
         case ID_REMOTE_CTRL_RUN:{
-            if (!l_config->fileExists()) { break; }
+            if (!l_config->fileExists()) { 
+                
+                SetRemoteControlMenuState(hWnd,false);
+                break; }
             remoteCtrlisTaskRunning = true;
             std::string mqaddr = l_config->getString("mqtt", "SERVER_ADDRESS");
             std::string name = l_config->getString("mqtt", "MQ_NAME");
@@ -392,9 +363,33 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
             break;
         }
         case ID_REMOTE_CTRL_STOP:
+            if (!l_config->fileExists()) { break; }
             remoteCtrlisTaskRunning = false;
             RemoteCtrl::Conntection::getInstance().stopMqtt();
             break;
+
+            //重新排序窗口及清除无效ID
+        case ID_WINDOW_RESIZE:
+            gameResiceAndClearInva();
+            break;
+
+            //关闭游戏
+        case ID_CLOSE_LISTBBOX_OK:
+            closeListboxProcesses();
+            break;
+        case ID_CLOSE_LISTBBOX_NO:
+           
+            break;
+           
+            //隐藏窗口
+        case ID_GAME_YINGDUN:
+            SetWindowVisibilityEx(false);
+            break;
+            //取消隐藏
+        case ID_GAME_ZHAOMINGSHU:
+            SetWindowVisibilityEx(true);
+            break;
+
         case IDM_EXIT:
             DestroyWindow(hWnd);
             break;
@@ -841,6 +836,7 @@ INT_PTR CALLBACK BATCH_LOGINS(HWND hDlg, UINT message, WPARAM wParam, LPARAM lPa
                     //batchGameLogin::logins_file(exeAddr, L"", acctAddr);
                     std::vector<batchGameLogin::ProcessInfo> processList= batchGameLogin::logins_file_and_splite_screen(exeAddr, L"", acctAddr);
 
+                    //登录完成后将进程放到listbox中
                     for (auto& proc : processList) {
 
                         WCHAR buffer[100];
@@ -883,7 +879,7 @@ void SelectFile(HWND hEdit)
     }
 }
 
-// mqtt_msg
+// mqtt_msg 远程控制消息处理
 void withRemoteCtrlHandler(const std::wstring& message) {
     std::wcout << "[自定义处理] 处理的消息内容: " << message << std::endl;
 
@@ -949,7 +945,8 @@ void withRemoteCtrlHandler(const std::wstring& message) {
               
                     // 使用范围 for 循环遍历字符串
                     //for (char c : kesy) {
-                    //    //这仅仅支持英文按键，由于是聊天内容，尝试换成中文输入
+                    //    //这仅
+                // 仅支持英文按键，由于是聊天内容，尝试换成中文输入
                     //    sendKeyToListBoxsDown(VkKeyScan(c));
                     //}
 
@@ -992,3 +989,117 @@ void withRemoteCtrlHandler(const std::wstring& message) {
         
     }
 }
+
+//窗口重排及清除无效窗口
+void gameResiceAndClearInva() {
+
+    std::vector<batchGameLogin::ProcessInfo> processList;
+
+    int count = SendMessage(hListBox, LB_GETCOUNT, 0, 0);
+    for (int j = 0; j < count; j++)
+    {
+        WCHAR buffer[100];
+        SendMessage(hListBox, LB_GETTEXT, j, (LPARAM)buffer);
+
+        UINT windowID;
+        if (swscanf_s(buffer, L"Window ID: 0x%08X", &windowID) == 1)
+        {
+            HWND targetWindow = (HWND)windowID;
+            if (IsWindow(targetWindow))
+            {
+                batchGameLogin::ProcessInfo procInfo = {};
+                procInfo.hwnd = targetWindow;
+                processList.push_back(procInfo);
+            }
+            else {
+                // 删除无效窗口
+                SendMessage(hListBox, LB_DELETESTRING, (WPARAM)j, 0);
+            }
+        }
+    }
+
+    batchGameLogin::ArrangeWindows(processList);
+    
+}
+
+
+//关闭所有游戏然后清除
+//void closeListboxsProcesss() {
+//
+//    int count = SendMessage(hListBox, LB_GETCOUNT, 0, 0);
+//    for (int j = 0; j < count; j++)
+//    {
+//        WCHAR buffer[100];
+//        SendMessage(hListBox, LB_GETTEXT, j, (LPARAM)buffer);
+//
+//        UINT windowID;
+//        if (swscanf_s(buffer, L"Window ID: 0x%08X", &windowID) == 1)
+//        {
+//            HWND targetWindow = (HWND)windowID;
+//            if (IsWindow(targetWindow))
+//            {
+//                   PostMessage(targetWindow, WM_CLOSE, 0, 0);
+//                //SendMessage(hWnd, WM_SYSCOMMAND, SC_CLOSE, 0);
+//            }
+//
+//            // 删除窗口
+//            SendMessage(hListBox, LB_DELETESTRING, (WPARAM)j, 0);
+//
+//        }
+//    }
+//}
+
+
+void closeListboxProcesses() {
+    int count = SendMessage(hListBox, LB_GETCOUNT, 0, 0);
+
+    // 从最后一项向前遍历，避免删除项导致索引错误
+    for (int j = count - 1; j >= 0; j--) {
+        WCHAR buffer[100];
+        SendMessage(hListBox, LB_GETTEXT, j, (LPARAM)buffer);
+
+        UINT windowID;
+        if (swscanf_s(buffer, L"Window ID: 0x%08X", &windowID) == 1) {
+            HWND targetWindow = (HWND)windowID;
+            if (IsWindow(targetWindow)) {
+                PostMessage(targetWindow, WM_CLOSE, 0, 0);  // 发送关闭消息
+                // SendMessage(targetWindow, WM_SYSCOMMAND, SC_CLOSE, 0); // 可选
+            }
+        }
+
+        // 删除当前列表项
+        SendMessage(hListBox, LB_DELETESTRING, (WPARAM)j, 0);
+    }
+}
+
+
+
+//隐藏或者显示窗口
+void SetWindowVisibilityEx(bool show) {
+    int count = SendMessage(hListBox, LB_GETCOUNT, 0, 0);
+    for (int j = 0; j < count; j++)
+    {
+        WCHAR buffer[100];
+        SendMessage(hListBox, LB_GETTEXT, j, (LPARAM)buffer);
+
+        UINT windowID;
+        if (swscanf_s(buffer, L"Window ID: 0x%08X", &windowID) == 1)
+        {
+            HWND targetWindow = (HWND)windowID;
+            if (IsWindow(targetWindow)) {
+                LONG style = GetWindowLong(targetWindow, GWL_EXSTYLE);
+                if (!show) {
+                    SetWindowLong(targetWindow, GWL_EXSTYLE, style | WS_EX_TOOLWINDOW);  // 设为工具窗口（不会出现在任务栏）
+                    ShowWindow(targetWindow, SW_HIDE);
+                }
+                else {
+                    SetWindowLong(targetWindow, GWL_EXSTYLE, style & ~WS_EX_TOOLWINDOW); // 恢复正常窗口
+                    ShowWindow(targetWindow, SW_SHOW);
+                }
+            }
+            
+
+        }
+    }
+}
+ 
