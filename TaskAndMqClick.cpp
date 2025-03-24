@@ -278,7 +278,16 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
     case WM_HOTKEY:
         if (wParam == HOTKEY_ID)
         {
+         
+            HWND hwndSelf = FindWindow(NULL, L"逛街的熔火之心"); // 替换为你的窗口标题      // 获取当前程序的控制台窗口句柄
+
             HWND hForegroundWnd = GetForegroundWindow();
+
+            if (hwndSelf == hForegroundWnd) {
+                
+                break; 
+            
+            }
             if (hForegroundWnd)
             {
                 DWORD processId;
@@ -882,6 +891,9 @@ void SelectFile(HWND hEdit)
 // mqtt_msg 远程控制消息处理
 void withRemoteCtrlHandler(const std::wstring& message) {
     std::wcout << "[自定义处理] 处理的消息内容: " << message << std::endl;
+    bool prevState = isTaskRunning;
+    isTaskRunning = false;
+
 
     try {
         if (remoteCtrlisTaskRunning) {
@@ -988,6 +1000,7 @@ void withRemoteCtrlHandler(const std::wstring& message) {
         std::cerr << "错误: " << exc.what() << std::endl;
         
     }
+    isTaskRunning = prevState;        // 恢复原状态
 }
 
 //窗口重排及清除无效窗口
