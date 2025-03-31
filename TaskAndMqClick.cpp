@@ -104,7 +104,7 @@ void StartTaskA(HWND hWnd) {
 
         // 强制重绘窗口，触发WM_PAINT消息
         InvalidateRect(hWnd, NULL, TRUE);
-        UpdateWindow(hWnd);
+        //UpdateWindow(hWnd);
     }
 }
 
@@ -119,7 +119,7 @@ void StopTaskA(HWND hWnd) {
 
         // 强制重绘窗口，触发WM_PAINT消息
         InvalidateRect(hWnd, NULL, TRUE);
-        UpdateWindow(hWnd);
+        //UpdateWindow(hWnd);
     }
 }
 
@@ -762,6 +762,7 @@ void sendMessageToListBoxs(const std::wstring& text)
                 {
                     
                     PasteToWindow(targetWindow);
+                    std::this_thread::sleep_for(std::chrono::milliseconds(50)); // 短暂延迟防止冲突
 
                     //这种方式不支持中文，太麻烦了。。。
                     //for (wchar_t ch : text) {
@@ -893,7 +894,8 @@ void withRemoteCtrlHandler(const std::wstring& message) {
     std::wcout << "[自定义处理] 处理的消息内容: " << message << std::endl;
     bool prevState = isTaskRunning;
     isTaskRunning = false;
-
+    
+    bool StateRollBack = false;
 
     try {
         if (remoteCtrlisTaskRunning) {
@@ -920,11 +922,17 @@ void withRemoteCtrlHandler(const std::wstring& message) {
                 CommandParseEr::CommandType cmd = CommandParseEr::parseCommand(data[L"COMMAND"]);
                 switch (cmd) {
                 case CommandParseEr::CommandType::START_TASK: {
+                    //操作总状态的，需要提前恢复状态
+                    isTaskRunning = prevState;
+                    StateRollBack = true;
                     // parseMessage("TYPE:2|COMMAND:START_TASK|TASK_ID:task_001"); 
                     StartTaskA(mainHWnd);
                     break;
                 }
                 case CommandParseEr::CommandType::STOP_TASK: {
+                    //操作总状态的，需要提前恢复状态
+                    isTaskRunning = prevState;
+                    StateRollBack = true;
                     // parseMessage("TYPE:2|COMMAND:STOP_TASK");
                     std::cout << "Command: STOP_TASK\n";
                     StopTaskA(mainHWnd);
@@ -1000,7 +1008,11 @@ void withRemoteCtrlHandler(const std::wstring& message) {
         std::cerr << "错误: " << exc.what() << std::endl;
         
     }
-    isTaskRunning = prevState;        // 恢复原状态
+    //如果没有恢复状态则恢复
+    if (!StateRollBack) {
+        isTaskRunning = prevState;        // 恢复原状态
+    }
+   
 }
 
 //窗口重排及清除无效窗口
