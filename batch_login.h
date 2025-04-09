@@ -239,6 +239,7 @@ namespace batchGameLogin{
     std::vector<ProcessInfo> logins_file_and_splite_screen(std::string gamePath, std::wstring windowTitle, std::string accountsFile) {
 
         std::wstring wGamePath = stringToWstring(gamePath);;
+        processList.clear();
 
         std::vector<Account> accounts = readAccounts(accountsFile);
         if (accounts.empty()) {

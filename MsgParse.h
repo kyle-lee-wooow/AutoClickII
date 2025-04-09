@@ -12,10 +12,10 @@ namespace CommandParseEr{
 
     
         // 命令类型枚举
-        enum class CommandType { START_TASK, STOP_TASK, CHECK_CHECKBOX, UNCHECK_CHECKBOX, UNKNOWN,WOW_SAY };
+        enum class CommandType { START_TASK, STOP_TASK, CHECK_CHECKBOX, UNCHECK_CHECKBOX, UNKNOWN,WOW_SAY ,LIFT_CLICK,RIGHT_CLICK};
 
         // 消息类型枚举
-        enum class MessageType { SINGLE_KEY, COMMAND, MULTI_KEY, INVALID };
+        enum class MessageType { SINGLE_KEY, COMMAND, MULTI_KEY,MOUSE_CLICK, INVALID };
 
         // 解析 Command 类型
        inline CommandType parseCommand(const std::wstring& command) {
@@ -24,6 +24,8 @@ namespace CommandParseEr{
             if (command == L"CHECK_CHECKBOX") return CommandType::CHECK_CHECKBOX;
             if (command == L"UNCHECK_CHECKBOX") return CommandType::UNCHECK_CHECKBOX;
             if (command == L"WOW_SAY") return CommandType::WOW_SAY;
+            if (command == L"LIFT_CLICK") return CommandType::LIFT_CLICK;
+            if (command == L"RIGHT_CLICK") return CommandType::RIGHT_CLICK;
             return CommandType::UNKNOWN;
         }
 
@@ -32,6 +34,7 @@ namespace CommandParseEr{
             if (type == L"1") return MessageType::SINGLE_KEY;
             if (type == L"2") return MessageType::COMMAND;
             if (type == L"3") return MessageType::MULTI_KEY;
+            if (type == L"4") return MessageType::MOUSE_CLICK;
             return MessageType::INVALID;
         }
 

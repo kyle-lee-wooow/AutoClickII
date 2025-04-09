@@ -102,3 +102,5 @@ void SelectFile(HWND hEdit);
 //隐藏/显示所有窗口
 void SetWindowVisibilityEx(bool show);
  
+//鼠标点击
+void sendClickToListBoxs(std::wstring key, bool leftClick);

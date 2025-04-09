@@ -53,10 +53,27 @@ void SetRemoteControlMenuState(HWND hWnd, bool enable) {
 
 // 获取控件文本的函数
 std::wstring GetEditText(HWND hDlg, int controlID) {
-    wchar_t szText[256];  // 缓冲区
-    GetWindowText(GetDlgItem(hDlg, controlID), szText, sizeof(szText) / sizeof(wchar_t));
-    return std::wstring(szText);
+    HWND hEdit = GetDlgItem(hDlg, controlID);
+    if (!hEdit) return L"";
+
+    int length = GetWindowTextLength(hEdit);
+    if (length == 0) return L"";
+
+    std::vector<wchar_t> buffer(length + 1);  // 确保足够的空间
+    GetWindowText(hEdit, buffer.data(), length + 1);
+
+    return std::wstring(buffer.data());
 }
+
+// 设置控件文本的函数
+void SetEditText(HWND hDlg, int controlID, const std::wstring& text) {
+    HWND hEdit = GetDlgItem(hDlg, controlID);
+    if (hEdit) {
+        SetWindowText(hEdit, text.c_str());
+    }
+}
+
+
 
 int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
     _In_opt_ HINSTANCE hPrevInstance,
@@ -350,6 +367,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
             break;
         case IDM_LOGINS:
             DialogBox(hInst, MAKEINTRESOURCE(IDD_LOGINSBOX), hWnd, BATCH_LOGINS);
+
             break;
 
         case ID_REMOTE_CTRL_RUN:{
@@ -677,6 +695,52 @@ void sendKeyToListBoxs(int key)
     }
 }
 
+
+
+
+void sendClickToListBoxs(std::wstring key,bool leftClick)
+{
+    // 执行按键发送
+    //if (key == L"CENTER")
+    if (true)
+    {
+        int count = SendMessage(hListBox, LB_GETCOUNT, 0, 0);
+        for (int j = 0; j < count; j++)
+        {
+            WCHAR buffer[100];
+            SendMessage(hListBox, LB_GETTEXT, j, (LPARAM)buffer);
+
+            UINT windowID;
+            if (swscanf_s(buffer, L"Window ID: 0x%08X", &windowID) == 1)
+            {
+                HWND targetWindow = (HWND)windowID;
+                if (IsWindow(targetWindow))
+                {
+                    RECT rect;
+                    GetClientRect(targetWindow, &rect);  // 获取客户区坐标（left=0, top=0, right=width, bottom=height）
+
+                    // 2. 计算中心点坐标
+                    int x = rect.right / 2;
+                    int y = rect.bottom / 2;
+
+                    if (leftClick) {
+                        SendMessage(targetWindow, WM_LBUTTONDOWN, 0, MAKELPARAM(x, y));
+                        std::this_thread::sleep_for(std::chrono::milliseconds(50)); // 短暂延迟防止冲突
+                        SendMessage(targetWindow, WM_LBUTTONUP, 0, MAKELPARAM(x, y));
+                    }
+                    else {
+                        SendMessage(targetWindow, WM_RBUTTONDOWN, 0, MAKELPARAM(x, y));
+                        std::this_thread::sleep_for(std::chrono::milliseconds(50)); // 短暂延迟防止冲突
+                        SendMessage(targetWindow, WM_RBUTTONUP, 0, MAKELPARAM(x, y));
+                    }
+                   
+
+                }
+            }
+        }
+    }
+}
+
 // 将文本复制到剪贴板
 void CopyToClipboard(const std::wstring& text) {
     if (!OpenClipboard(nullptr)) return;
@@ -814,9 +878,9 @@ INT_PTR CALLBACK BATCH_LOGINS(HWND hDlg, UINT message, WPARAM wParam, LPARAM lPa
             case IDC_LOGIN_EXE_EDIT1:
             case IDC_LOGIN_ACCOUNTS_EDIT2: {
                 // 当输入框内容更新时，检查是否包含空格，若包含则弹出文件选择器
-                if (HIWORD(wParam) == EN_UPDATE) {
+                if (HIWORD(wParam) == EN_CHANGE) {
                     std::wstring text = GetEditText(hDlg, LOWORD(wParam));
-                    if (wcschr(text.c_str(), L' ')) {  // wcschr 查找第一个空格
+                    if (text[0] == L' ') {  // wcschr 查找第一个空格
                         SelectFile(GetDlgItem(hDlg, LOWORD(wParam)));
                     }
                 }
@@ -832,6 +896,22 @@ INT_PTR CALLBACK BATCH_LOGINS(HWND hDlg, UINT message, WPARAM wParam, LPARAM lPa
                 std::string exeAddr = WcharToString(exeText.c_str());
                 std::string acctAddr = WcharToString(acctText.c_str());
 
+                if (exeAddr.empty() || acctAddr.empty()) {
+                    if (l_config->fileExists()) {
+                        std::string eee = l_config->getString("batch_logins", "file_exe");
+                        std::string fff = l_config->getString("batch_logins", "accounts");
+
+                        if (!eee.empty()) {
+                            SetEditText(hDlg, IDC_LOGIN_EXE_EDIT1, stringToWstring(eee));
+                        }
+                        if (!fff.empty()) {
+                            SetEditText(hDlg, IDC_LOGIN_ACCOUNTS_EDIT2, stringToWstring(fff));
+                        }
+                        break;
+
+                    }
+                }
+
                 if (exeAddr.empty()) {
                     exeAddr = "WoW.exe";
                 }
@@ -843,19 +923,16 @@ INT_PTR CALLBACK BATCH_LOGINS(HWND hDlg, UINT message, WPARAM wParam, LPARAM lPa
 
 
                 if (!exeAddr.empty() && !acctAddr.empty()) {
-                    //batchGameLogin::logins_file(exeAddr, L"", acctAddr);
-                    std::vector<batchGameLogin::ProcessInfo> processList= batchGameLogin::logins_file_and_splite_screen(exeAddr, L"", acctAddr);
+
+                    batchGameLogin::logins_file_and_splite_screen(exeAddr, L"", acctAddr);
 
                     //登录完成后将进程放到listbox中
-                    for (auto& proc : processList) {
+                    for (auto& proc : batchGameLogin::processList) {
 
                         WCHAR buffer[100];
                         swprintf_s(buffer, L"Window ID: 0x%08X, PID: %u", (UINT)proc.hwnd, proc.pi.dwProcessId);
                         SendMessage(hListBox, LB_ADDSTRING, 0, (LPARAM)buffer);
                     }
-
-
-                    processList.clear();
                 }
                 EndDialog(hDlg, LOWORD(wParam));
                 return (INT_PTR)TRUE;
@@ -986,6 +1063,30 @@ void withRemoteCtrlHandler(const std::wstring& message) {
                 }
                 break;
             }
+            case CommandParseEr::MessageType::MOUSE_CLICK: {
+            
+                CommandParseEr::CommandType cmd = CommandParseEr::parseCommand(data[L"COMMAND"]); 
+                std::wstring position = data[L"POSITION"];
+
+                switch (cmd) {
+                case CommandParseEr::CommandType::LIFT_CLICK: {
+                    sendClickToListBoxs(position,true);
+                    break;
+                }
+
+                case CommandParseEr::CommandType::RIGHT_CLICK: {
+                    sendClickToListBoxs(position,false);
+                    break;
+                }
+
+                default: {
+                    std::cout << "Unknown Command\n";
+                }
+                }
+
+            
+            }
+
             case CommandParseEr::MessageType::MULTI_KEY: {
                 //parseMessage("TYPE:3|KEYS:Shift+6");
                 
@@ -1021,7 +1122,7 @@ void gameResiceAndClearInva() {
     std::vector<batchGameLogin::ProcessInfo> processList;
 
     int count = SendMessage(hListBox, LB_GETCOUNT, 0, 0);
-    for (int j = 0; j < count; j++)
+    for (int j = count - 1; j >= 0; j--)  // 倒序遍历
     {
         WCHAR buffer[100];
         SendMessage(hListBox, LB_GETTEXT, j, (LPARAM)buffer);
@@ -1036,12 +1137,14 @@ void gameResiceAndClearInva() {
                 procInfo.hwnd = targetWindow;
                 processList.push_back(procInfo);
             }
-            else {
+            else
+            {
                 // 删除无效窗口
                 SendMessage(hListBox, LB_DELETESTRING, (WPARAM)j, 0);
             }
         }
     }
+
 
     batchGameLogin::ArrangeWindows(processList);
     
