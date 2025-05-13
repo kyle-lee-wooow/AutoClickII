@@ -723,6 +723,12 @@ void sendClickToListBoxs(std::wstring key,bool leftClick)
                     int x = rect.right / 2;
                     int y = rect.bottom / 2;
 
+                    // 激活目标窗口
+                    SetForegroundWindow(targetWindow);
+
+                    SendMessage(targetWindow, WM_LBUTTONDOWN, 0, MAKELPARAM(x, y));
+                    std::this_thread::sleep_for(std::chrono::milliseconds(50)); // 短暂延迟防止冲突
+
                     if (leftClick) {
                         SendMessage(targetWindow, WM_LBUTTONDOWN, 0, MAKELPARAM(x, y));
                         std::this_thread::sleep_for(std::chrono::milliseconds(50)); // 短暂延迟防止冲突
