@@ -179,6 +179,20 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
         CW_USEDEFAULT, CW_USEDEFAULT, 700, 500,
         nullptr, nullptr, hInstance, nullptr);
 
+    hStatusLabel = CreateWindowW(
+        L"STATIC",                 // 控件类型
+        L"",                       // 初始文本内容为空
+        WS_CHILD | WS_VISIBLE | SS_LEFT,
+        10,                       // x 位置
+        400,                      // y 位置（靠近底部，700×500 窗口）
+        650,                      // 宽度
+        40,                       // 高度
+        mainHWnd,                 // 父窗口
+        nullptr,
+        hInstance,
+        nullptr
+    );
+
 
     if (!mainHWnd)
     {
@@ -200,6 +214,9 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
     //美化
     setTheme(mainHWnd);
     setTheme(hListBox);
+    
+    //设置默认底部华语
+    SetWindowTextW(hStatusLabel, L"have a nice day ...");
 
     return TRUE;
 }
@@ -262,9 +279,11 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 
         // 设置自动打怪
         SetWindowTextW(hEditB[0], L"1"); 
+        SetWindowTextW(hEditB[9], L"1"); 
 
-        // 设置自动摧毁
-        SetWindowTextW(hEditB[7], L"600");
+        // 设置跳跳
+        SetWindowTextW(hEditB[7], L"100");
+        SetWindowTextW(hEditC[7], L"Space");
 
 
 
@@ -491,6 +510,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
         return 0;
 
     case WM_DESTROY:
+        SetWindowVisibilityEx(true);
         UnregisterHotKey(hWnd, HOTKEY_ID);
         PostQuitMessage(0);
         break;
@@ -980,6 +1000,8 @@ void withRemoteCtrlHandler(const std::wstring& message) {
     
     bool StateRollBack = false;
 
+    SetWindowTextW(hStatusLabel, message.c_str());
+
     try {
         if (remoteCtrlisTaskRunning) {
             //先直接按键，后续要根据类型，开启走其他命令，如开启，或者关闭
@@ -1023,6 +1045,7 @@ void withRemoteCtrlHandler(const std::wstring& message) {
                 }
                 case CommandParseEr::CommandType::CHECK_CHECKBOX: {
                     //parseMessage("TYPE:2|COMMAND:CHECK_CHECKBOX|CHECKBOX_ID:chk_123"); 
+                    if (!is_all_digits(data[L"CHECKBOX_ID"])) { break; }
                     int  ck_id = std::stoi(data[L"CHECKBOX_ID"]);
                     if (ck_id < L_TASK_COUNTS) {
                         SendMessage(hCheckBoxes[ck_id], BM_SETCHECK, BST_CHECKED, 0);    // 选中复选框
@@ -1031,6 +1054,7 @@ void withRemoteCtrlHandler(const std::wstring& message) {
                     break;
                 }
                 case CommandParseEr::CommandType::UNCHECK_CHECKBOX: { 
+                    if (!is_all_digits(data[L"CHECKBOX_ID"])) { break; }
                     int  uck_id = std::stoi(data[L"CHECKBOX_ID"]);
                     if (uck_id < L_TASK_COUNTS) {
                         SendMessage(hCheckBoxes[uck_id], BM_SETCHECK, BST_UNCHECKED, 0);  // 取消选中复选框
@@ -1236,4 +1260,7 @@ void SetWindowVisibilityEx(bool show) {
         }
     }
 }
- 
+
+bool is_all_digits(const std::wstring& s) {
+    return !s.empty() && std::all_of(s.begin(), s.end(), iswdigit);
+}

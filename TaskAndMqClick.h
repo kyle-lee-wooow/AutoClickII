@@ -50,6 +50,8 @@ HWND hEditB[L_TASK_COUNTS];
 HWND hEditC[L_TASK_COUNTS];
 HWND mainHWnd;
 
+HWND hStatusLabel; // 状态标签
+
 //本地文件配置
 std::unique_ptr<CFG> l_config;  // 使用 unique_ptr
 
@@ -104,3 +106,6 @@ void SetWindowVisibilityEx(bool show);
  
 //鼠标点击
 void sendClickToListBoxs(std::wstring key, bool leftClick);
+
+//纯数字字符串检查
+bool is_all_digits(const std::wstring& s);
