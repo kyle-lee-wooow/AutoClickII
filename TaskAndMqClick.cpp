@@ -176,14 +176,14 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 
     mainHWnd = CreateWindowW(szWindowClass, szTitle,
         WS_OVERLAPPEDWINDOW | WS_TABSTOP,  // 确保支持键盘输入
-        CW_USEDEFAULT, CW_USEDEFAULT, 700, 500,
+        CW_USEDEFAULT, CW_USEDEFAULT, 660, 500,
         nullptr, nullptr, hInstance, nullptr);
 
     hStatusLabel = CreateWindowW(
         L"STATIC",                 // 控件类型
-        L"",                       // 初始文本内容为空
+        L"have a nice day ...",                       // 初始文本内容为空
         WS_CHILD | WS_VISIBLE | SS_LEFT,
-        10,                       // x 位置
+        5,                       // x 位置
         400,                      // y 位置（靠近底部，700×500 窗口）
         650,                      // 宽度
         40,                       // 高度
@@ -210,14 +210,7 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 
     ShowWindow(mainHWnd, nCmdShow);
     UpdateWindow(mainHWnd);
-
-    //美化
-    setTheme(mainHWnd);
-    setTheme(hListBox);
-    
-    //设置默认底部华语
-    SetWindowTextW(hStatusLabel, L"have a nice day ...");
-
+     
     return TRUE;
 }
 
@@ -436,9 +429,34 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
             SetWindowVisibilityEx(true);
             break;
 
-        case IDM_EXIT:
-            DestroyWindow(hWnd);
+
+			//按键事件设置
+		case ID_PRESS_KEY_UD:
+            keyEventType = ID_PRESS_KEY_UD; // 按下+释放
+            SetWindowTextW(hStatusLabel, L"按键事件设置为：按下+释放");
+			break;
+        case ID_PRESS_KEY_D:
+            keyEventType = ID_PRESS_KEY_D; // 仅按下
+			SetWindowTextW(hStatusLabel, L"按键事件设置为：仅按下");
             break;
+        case ID_PRESS_KEY_U:
+			keyEventType = ID_PRESS_KEY_U; // 仅释放
+            SetWindowTextW(hStatusLabel, L"按键事件设置为：仅释放");
+			break;
+
+        case ID_PRESS_KEY_TYPE_POST:
+            keyInputTYpe = ID_PRESS_KEY_TYPE_POST; // 按键事件设置为 POST
+            SetWindowTextW(hStatusLabel, L"按键事件设置为：PostMessage");
+			break;
+        case ID_PRESS_KEY_TYPE_INPUT:
+            keyInputTYpe = ID_PRESS_KEY_TYPE_INPUT; // 按键事件设置为 INPUT
+            SetWindowTextW(hStatusLabel, L"按键事件设置为：sendInput");
+			break;
+
+        //case IDM_EXIT:
+        //   //下拉退出 没什么用
+        //    //DestroyWindow(hWnd);
+        //    break;
         default:
             return DefWindowProc(hWnd, message, wParam, lParam);
         }
@@ -465,7 +483,34 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
                         SendMessage(hEditC[i], WM_GETTEXT, 100, (LPARAM)keyText);
                         std::wstring keyStr(keyText);
 
-                        sendMultipleKeysToListBoxs(keyStr); // 发送多按键
+                        switch (keyEventType)
+                        {
+                            case ID_PRESS_KEY_UD: // 按下+释放
+                                sendMultipleKeysToListBoxs(keyStr);
+							    break;
+                            case ID_PRESS_KEY_D: // 仅按下
+                                for (const auto& keys : ParseMultipleKeyCombos(keyStr)) {
+                                    // 按下所有按键
+                                    for (BYTE key : keys) {
+                                        sendKeyToListBoxsDown(key);
+
+                                    }
+                                }
+							    break;
+                            case ID_PRESS_KEY_U: // 仅释放
+                                for (const auto& keys : ParseMultipleKeyCombos(keyStr)) {
+                                    // 按下所有按键
+                                    for (BYTE key : keys) {
+                                        sendKeyToListBoxsUp(key);
+
+                                    }
+                                }
+                                break;
+                        default:
+                            break;
+                        }
+
+                      
 
                         nextExecutionTimes[i] = currentTime + std::chrono::seconds(interval);
                     }
@@ -510,9 +555,11 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
         return 0;
 
     case WM_DESTROY:
+        KillTimer(mainHWnd, TIMER_ID);
         SetWindowVisibilityEx(true);
         UnregisterHotKey(hWnd, HOTKEY_ID);
         PostQuitMessage(0);
+
         break;
 
 
@@ -657,7 +704,24 @@ void sendKeyToListBoxsDown(int key)
                 HWND targetWindow = (HWND)windowID;
                 if (IsWindow(targetWindow))
                 {
-                    PostMessage(targetWindow, WM_KEYDOWN, (WPARAM)key, 0); 
+
+                    switch (keyInputTYpe)
+                    {
+                    case ID_PRESS_KEY_TYPE_POST:
+                        PostMessage(targetWindow, WM_KEYDOWN, (WPARAM)key, 0); 
+						break;
+
+                    case ID_PRESS_KEY_TYPE_INPUT:
+                            {
+                            // 激活目标窗口
+                            SetForegroundWindow(targetWindow);
+                            INPUT input = { 0 };
+                            input.type = INPUT_KEYBOARD;
+                            input.ki.wVk = key;
+                            SendInput(1, &input, sizeof(INPUT));
+                        }
+						break;
+                    } 
                 }
             }
         }
@@ -683,7 +747,24 @@ void sendKeyToListBoxsUp(int key)
                 if (IsWindow(targetWindow))
                 {
                    
-                    PostMessage(targetWindow, WM_KEYUP, (WPARAM)key, 0);
+                    switch (keyInputTYpe)
+                    {
+                    case ID_PRESS_KEY_TYPE_POST:
+                        PostMessage(targetWindow, WM_KEYUP, (WPARAM)key, 0);
+                        break;
+
+                    case ID_PRESS_KEY_TYPE_INPUT:
+                    {
+                        // 激活目标窗口
+                        SetForegroundWindow(targetWindow);
+                        INPUT input = { 0 };
+                        input.type = INPUT_KEYBOARD;
+                        input.ki.wVk = key;
+                        input.ki.dwFlags = KEYEVENTF_KEYUP;
+                        SendInput(1, &input, sizeof(INPUT));
+                    }
+                    break;
+                    }
                 }
             }
         }
@@ -707,8 +788,37 @@ void sendKeyToListBoxs(int key)
                 HWND targetWindow = (HWND)windowID;
                 if (IsWindow(targetWindow))
                 {
-                    PostMessage(targetWindow, WM_KEYDOWN, (WPARAM)key, 0);
-                    PostMessage(targetWindow, WM_KEYUP, (WPARAM)key, 0);
+                    switch (keyInputTYpe)
+                    {
+                    case ID_PRESS_KEY_TYPE_POST:
+                        PostMessage(targetWindow, WM_KEYDOWN, (WPARAM)key, 0);
+                        PostMessage(targetWindow, WM_KEYUP, (WPARAM)key, 0);
+
+                        break;
+
+                    case ID_PRESS_KEY_TYPE_INPUT:
+                    {
+                        // 激活目标窗口
+                        SetForegroundWindow(targetWindow);
+
+
+                        INPUT inputs[2] = { 0 };
+
+                        // 按下
+                        inputs[0].type = INPUT_KEYBOARD;
+                        inputs[0].ki.wVk = key;
+
+                        // 抬起
+                        inputs[1].type = INPUT_KEYBOARD;
+                        inputs[1].ki.wVk = key;
+                        inputs[1].ki.dwFlags = KEYEVENTF_KEYUP;
+
+                        SendInput(2, inputs, sizeof(INPUT));
+
+                    }
+                    break;
+                    }
+
                 }
             }
         }

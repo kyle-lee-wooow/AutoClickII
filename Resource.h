@@ -28,6 +28,16 @@
 #define ID_32781                        32781
 #define ID_GAME_YINGDUN                 32782
 #define ID_GAME_ZHAOMINGSHU             32783
+#define ID_Menu                         32784
+#define ID_32785                        32785
+#define ID_32786                        32786
+#define ID_PRESS_KEY_UD                 32787
+#define ID_PRESS_KEY_U                  32788
+#define ID_PRESS_KEY_D                  32789
+
+#define ID_PRESS_KEY_TYPE				32790
+#define ID_PRESS_KEY_TYPE_POST          32791
+#define ID_PRESS_KEY_TYPE_INPUT         32792
 #define IDC_STATIC                      -1
 
 // Next default values for new objects
@@ -36,7 +46,7 @@
 #ifndef APSTUDIO_READONLY_SYMBOLS
 #define _APS_NO_MFC                     1
 #define _APS_NEXT_RESOURCE_VALUE        129
-#define _APS_NEXT_COMMAND_VALUE         32784
+#define _APS_NEXT_COMMAND_VALUE         32793
 #define _APS_NEXT_CONTROL_VALUE         1001
 #define _APS_NEXT_SYMED_VALUE           110
 #endif

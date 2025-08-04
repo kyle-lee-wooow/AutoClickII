@@ -9,7 +9,7 @@
 #define EDIT_C_BASE_ID 400    
 
 #define TIMER_ID 1
-#define INTERVAL_MS 500  // 定时器触发间隔时间
+#define INTERVAL_MS 1000  // 定时器触发间隔时间
 
 // 现在可以同时执行多少个按键
 #define L_TASK_COUNTS 10
@@ -109,3 +109,9 @@ void sendClickToListBoxs(std::wstring key, bool leftClick);
 
 //纯数字字符串检查
 bool is_all_digits(const std::wstring& s);
+
+//按键事件设置状态
+int keyEventType = ID_PRESS_KEY_UD; // ID_PRESS_KEY_UD: 按下+释放, ID_PRESS_KEY_D: 按下, ID_PRESS_KEY_U: 释放
+
+//按键
+int keyInputTYpe = ID_PRESS_KEY_TYPE_POST; // ID_PRESS_KEY_TYPE_POST: 发送信息, ID_PRESS_KEY_TYPE_INPUT: 模拟用户输入
